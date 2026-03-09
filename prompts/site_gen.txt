@@ -1,0 +1,35 @@
+Sei un web designer esperto. Crea un sito web single-page professionale per questo business locale italiano.
+
+BUSINESS:
+- Nome: {name}
+- Tipo: {category}
+- Indirizzo: {address}
+- Telefono: {phone}
+- Rating Google: {rating}/5 ({reviews} recensioni)
+
+IMMAGINI DISPONIBILI:
+{images_block}
+
+REQUISITI TECNICI:
+- Un SINGOLO file HTML completo con tutto inline (CSS nel <style>, JS nel <script>)
+- Mobile-first e responsive (viewport meta + media queries)
+- Design moderno e professionale adatto al settore
+
+SEZIONI OBBLIGATORIE (in quest'ordine):
+1. HERO — immagine/background full-width, nome business in grande, sottotitolo, CTA "Chiamaci ora" (href="tel:{phone}")
+2. CHI SIAMO — 2-3 paragrafi caldi e professionali, basati sul tipo di business (non generici)
+3. SERVIZI — 3-4 card con icona emoji + titolo + descrizione breve
+4. GALLERIA — mostra le immagini disponibili ({gallery_instruction})
+5. CONTATTI — iframe Google Maps embed + tel cliccabile + indirizzo formattato
+6. FOOTER — "© 2025 {name} · Tutti i diritti riservati"
+
+STILE:
+- Google Fonts CDN (scegli font adatto: serif per ristoranti, sans per servizi, ecc.)
+- Palette colori coerente col settore
+- Hover effects e transizioni CSS leggere
+- Sticky navbar con il nome del business
+
+ISTRUZIONI IMMAGINI:
+{image_instructions}
+
+Rispondi ESCLUSIVAMENTE con il codice HTML. Nessun testo aggiuntivo, nessun markdown.

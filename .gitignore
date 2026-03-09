@@ -1,0 +1,6 @@
+.env
+results/
+results.csv
+__pycache__/
+*.pyc
+.vercel/
