@@ -1,8 +1,9 @@
-"""Vercel deployment — preview, test, and promote to production."""
+"""Vercel deployment — all sites under a single 'webseed' project."""
 
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 
@@ -48,9 +49,6 @@ def check_vercel_ready() -> str:
     return vercel_bin
 
 
-VERCEL_PROJECT_NAME = os.getenv("VERCEL_PROJECT_NAME", "webseed")
-
-
 def remove_deployment(vercel_bin: str, url: str) -> bool:
     """Remove a single Vercel deployment by URL. Returns True if removed."""
     result = subprocess.run(
@@ -65,7 +63,7 @@ def remove_deployment(vercel_bin: str, url: str) -> bool:
 
 
 def deploy(site_dir: str, vercel_bin: str) -> str:
-    """Deploy to Vercel as a preview deployment. Returns the deployment URL."""
+    """Deploy to Vercel under the shared 'webseed' project. Returns the unique public deployment URL."""
     # Write project name into vercel.json
     vercel_json_path = os.path.join(site_dir, "vercel.json")
     vercel_config = {}
@@ -75,7 +73,7 @@ def deploy(site_dir: str, vercel_bin: str) -> str:
                 vercel_config = json.load(f)
         except json.JSONDecodeError:
             vercel_config = {}
-    vercel_config["name"] = VERCEL_PROJECT_NAME
+    vercel_config["name"] = "webseed"
     with open(vercel_json_path, "w") as f:
         json.dump(vercel_config, f, indent=2)
         f.write("\n")
@@ -93,6 +91,21 @@ def deploy(site_dir: str, vercel_bin: str) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"Vercel deploy failed: {result.stderr}")
 
-    url = result.stdout.strip().splitlines()[-1].strip()
+    # Extract the public URL from Vercel CLI output.
+    # Output lines may contain prefixes like "✅  Preview:" and suffixes like "[3s]".
+    url = _extract_url(result.stdout)
+    if not url:
+        raise RuntimeError(
+            f"Could not parse deployment URL from Vercel output:\n{result.stdout}"
+        )
     log.info("Deployment URL: %s", url)
     return url
+
+
+def _extract_url(output: str) -> str | None:
+    """Extract the https:// deployment URL from Vercel CLI stdout."""
+    for line in reversed(output.strip().splitlines()):
+        match = re.search(r"https://[^\s\[\]]+\.vercel\.app", line)
+        if match:
+            return match.group(0)
+    return None

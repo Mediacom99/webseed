@@ -9,7 +9,7 @@ Automated CLI pipeline that finds Italian local businesses without websites on G
 - **Python ≥3.11** — `src/` layout package, venv at `.venv/`, managed via `pyproject.toml` (`.python-version` pins 3.14 for dev)
 - **Google Maps Places API** (legacy) — business discovery via `googlemaps` library
 - **Claude Code CLI** — site generation, visual testing, HTML fixes, and email generation (via `claude --print` subprocess)
-- **Vercel CLI** — production deployment (`npm i -g vercel`)
+- **Vercel CLI** — deployment (`npm i -g vercel`)
 - **Playwright MCP** — visual testing via Claude Code CLI (browser navigation, screenshots, DOM inspection)
 - **Playwright** (Python) — above-the-fold email screenshots only
 - **TinyDB** — local JSON-based state management (`webseed.json`)
@@ -32,7 +32,7 @@ webseed/                          (project root)
         ├── store.py              (TinyDB data store)
         ├── maps.py               (Google Places search, photo download)
         ├── generator.py          (Claude Code CLI HTML generation)
-        ├── deployer.py           (Vercel production deploy)
+        ├── deployer.py           (Vercel deploy under shared 'webseed' project)
         ├── tester.py             (Visual testing via Claude CLI + email screenshots)
         ├── emailer.py            (Gmail draft creation + Claude email gen)
         └── prompts/
@@ -64,7 +64,7 @@ Error statuses: `error_generate`, `error_test`, `error_deploy`, `error_email`. S
 | `src/webseed/store.py` | TinyDB data store — open/upsert/query businesses, status updates, blacklist management |
 | `src/webseed/maps.py` | Searches Google Places for businesses without websites, downloads photos. Returns `BusinessData` dataclasses |
 | `src/webseed/generator.py` | Builds prompt from template + business data, calls Claude Code CLI, writes single-file `index.html` with inline CSS/JS |
-| `src/webseed/deployer.py` | Production deploy to Vercel. Projects named `webseed-{slug}` |
+| `src/webseed/deployer.py` | Deploy to Vercel under a single `webseed` project. Each business gets a unique public deployment URL |
 | `src/webseed/tester.py` | Visual testing via Claude Code CLI + Playwright MCP, HTML fixes, and email screenshot capture (Python Playwright) |
 | `src/webseed/emailer.py` | Gmail API auth, Claude Code CLI email generation, MIME draft creation with inline screenshot |
 | `src/webseed/prompts/site_gen.txt` | Italian-language user prompt template for site generation |
@@ -88,25 +88,22 @@ pip install -e .     # editable install from project root
 # 1. Search — find businesses on Maps, save to DB
 webseed search --location "Milano, Italy" --query "ristorante" --limit 5
 
-# 2. Generate — create HTML sites via Claude Code CLI
-webseed generate                       # all 'searched' businesses
-webseed generate --model opus          # use a specific model
-webseed generate PLACE_ID "nome"       # specific businesses (by place_id or name)
+# 2. Generate — create HTML sites via Claude Code CLI (place_ids required)
+webseed generate PLACE_ID "nome"       # by place_id or name
+webseed generate PLACE_ID --model opus # use a specific model
 
-# 3. Test — code review + fix loop (local, no deploy needed)
-webseed test                           # all 'generated' businesses
-webseed test --playwright              # also run Playwright visual test
-webseed test --max-fix-iterations 1    # limit fix-retest cycles (default: 3)
-webseed test --test-model sonnet       # model for testing (default: sonnet)
-webseed test PLACE_ID "nome"           # specific businesses
+# 3. Test — code review + fix loop (local, no deploy needed) (place_ids required)
+webseed test PLACE_ID "nome"           # by place_id or name
+webseed test PLACE_ID --playwright     # also run Playwright visual test
+webseed test PLACE_ID --max-fix-iterations 1    # limit fix-retest cycles (default: 3)
+webseed test PLACE_ID --test-model sonnet       # model for testing (default: sonnet)
 
-# 4. Deploy — deploy to Vercel production + email screenshot
-webseed deploy                         # all 'tested' businesses
-webseed deploy PLACE_ID "nome"         # specific businesses
+# 4. Deploy — deploy to Vercel + email screenshot (place_ids required)
+webseed deploy PLACE_ID "nome"         # by place_id or name
 
-# 5. Email — generate personalized emails, create Gmail drafts
-webseed email
-webseed email --model opus             # use a specific model
+# 5. Email — generate personalized emails, create Gmail drafts (place_ids required)
+webseed email PLACE_ID "nome"          # by place_id or name
+webseed email PLACE_ID --model opus    # use a specific model
 
 # 6. Run — full pipeline (generate → test → deploy → email) for specific businesses
 webseed run PLACE_ID [PLACE_ID...]     # required: one or more identifiers
@@ -129,7 +126,7 @@ webseed blacklist-list                       # Show all blacklisted
 webseed reset PLACE_ID --to searched         # Reset status to re-process
 webseed db-delete PLACE_ID [PLACE_ID...]     # Remove from DB only (keeps files + Vercel)
 webseed db-delete --all --skip PLACE_ID      # Remove all except specified
-webseed hard-delete PLACE_ID [PLACE_ID...]   # Delete DB + files + Vercel project
+webseed hard-delete PLACE_ID [PLACE_ID...]   # Delete DB + files + Vercel deployment
 webseed hard-delete --blacklist PLACE_ID     # Same but keep entry as blacklisted
 webseed hard-delete -y PLACE_ID              # Skip confirmation
 webseed export-csv --output results.csv      # Export DB to CSV
@@ -173,9 +170,9 @@ Defined in `.env` (copy from `.env.example`):
 
 ## Deploy Flow
 
-1. `deploy()` — writes project name into `vercel.json`, deploys with `--prod`, returns production URL
+1. `deploy()` — all sites deploy under a single `webseed` Vercel project (no `--prod`). Each deployment gets a unique permanent public URL
 2. `capture_email_screenshot()` — 1280x600 above-the-fold screenshot for email via Python Playwright (non-fatal on failure)
-3. Projects named `webseed-{slugified-name}` (e.g. `webseed-ristorante-da-mario.vercel.app`)
+3. The public deployment URL is saved in the DB and used in outreach emails
 
 ## Email Flow
 
