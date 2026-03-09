@@ -81,6 +81,9 @@ Or run the full pipeline for specific businesses:
 
 ```bash
 webseed run "ristorante da mario" --model opus
+
+# Full pipeline with best quality settings (opus models, verbose)
+webseed run "ristorante da mario" --hard
 ```
 
 ---
@@ -127,6 +130,7 @@ Most commands accept place IDs or partial business names (case-insensitive).
 | `--playwright` | test | Enable visual testing with Playwright |
 | `--max-fix-iterations` | test, run | Max fix-retest cycles (default: 3) |
 | `--no-email` | run | Skip the email step |
+| `--hard` | run | Deep run: opus models, 3 fix iterations, verbose |
 | `--db` | all | Database file path (default: webseed.json) |
 | `--results-dir` | all | Output directory (default: results/) |
 | `-v` | all | Verbose/debug logging |
@@ -167,7 +171,7 @@ Error states (`error_generate`, `error_deploy`, etc.) can be reset with `webseed
 ### Key Design Decisions
 
 - **Claude Code CLI** is used for all AI operations (not the API directly) — handles its own auth, supports tool use and Playwright MCP
-- **Single-file HTML** — each site is one `index.html` with inline CSS/JS for zero-config Vercel deploys
+- **Single-file HTML** — each site is one `index.html` with inline CSS/JS for zero-config Vercel deploys. Each business gets its own Vercel project (`webseed-{slug}.vercel.app`)
 - **TinyDB** — simple local JSON database, no server needed
 - **Prompt templates** are externalized in `src/webseed/prompts/` — easy to iterate on without touching Python code
 - **Synonym expansion** — searching "ristorante" also tries "trattoria", "osteria", "pizzeria" automatically
