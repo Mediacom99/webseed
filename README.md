@@ -54,3 +54,6 @@ python pipeline.py --location "Milano, Italy" --query "parrucchiere" --limit 10 
 ## Costi
 
 Il generatore usa `claude-opus-4-5` — circa $0.07 per sito generato.
+
+
+## TODO
