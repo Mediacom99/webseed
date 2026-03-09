@@ -1,0 +1,18 @@
+Sei un web designer esperto. Correggi questo sito HTML per un business locale italiano.
+
+BUSINESS: {name} ({category})
+
+PROBLEMI TROVATI DAL QA:
+{issues}
+
+HTML ATTUALE:
+{html}
+
+ISTRUZIONI:
+- Correggi TUTTI i problemi elencati sopra
+- Mantieni la struttura e lo stile generale del sito
+- Mantieni tutte le sezioni esistenti che funzionano
+- Il sito deve rimanere un singolo file HTML con CSS e JS inline
+- Il testo deve essere in italiano
+
+Rispondi ESCLUSIVAMENTE con il codice HTML corretto. Nessun testo aggiuntivo, nessun markdown.

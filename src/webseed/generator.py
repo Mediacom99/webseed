@@ -1,14 +1,9 @@
-"""Claude API site generator — produces single-file HTML for a business."""
+"""Claude Code CLI site generator — produces single-file HTML for a business."""
 
 import os
 import re
 
-import anthropic
-import httpx
-
-CLAUDE_MODEL = "claude-opus-4-5"
-CLAUDE_MAX_TOKENS = 8000
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+from webseed.claude_cli import run_claude_cli
 
 
 def _build_prompt(biz, prompt_template: str) -> str:
@@ -36,7 +31,7 @@ def _build_prompt(biz, prompt_template: str) -> str:
         name=biz.name,
         category=biz.category.replace("_", " "),
         address=biz.address,
-        phone=biz.phone or "—",
+        phone=biz.phone or "Non disponibile",
         rating=biz.rating,
         reviews=biz.reviews,
         images_block=images_block,
@@ -56,42 +51,19 @@ def generate(
     biz,
     output_dir: str,
     prompt_template: str,
-    api_key: str,
+    system_prompt: str,
+    model: str = "sonnet",
 ) -> str:
     """Generate index.html for the business. Returns the site directory path."""
-    safe_name = biz.name.lower().replace(" ", "_").replace("/", "_")[:30]
-    site_dir = os.path.join(output_dir, safe_name)
+    from webseed.maps import safe_name
+
+    safe = safe_name(biz.name)
+    site_dir = os.path.join(output_dir, safe)
     os.makedirs(site_dir, exist_ok=True)
 
     prompt = _build_prompt(biz, prompt_template)
 
-    if api_key.startswith("sk-ant-oat"):
-        # OAuth tokens (from `claude setup-token`) need Bearer auth + oauth beta header
-        resp = httpx.post(
-            ANTHROPIC_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "anthropic-version": "2023-06-01",
-                "anthropic-beta": "oauth-2025-04-20",
-                "content-type": "application/json",
-            },
-            json={
-                "model": CLAUDE_MODEL,
-                "max_tokens": CLAUDE_MAX_TOKENS,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=120,
-        )
-        resp.raise_for_status()
-        raw_text = resp.json()["content"][0]["text"]
-    else:
-        client = anthropic.Anthropic(api_key=api_key)
-        message = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=CLAUDE_MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw_text = message.content[0].text
+    raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
 
     html = _strip_code_fences(raw_text)
 

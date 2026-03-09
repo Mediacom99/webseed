@@ -40,7 +40,7 @@ class BusinessData:
     fallback_unsplash_url: str
 
 
-def _safe_name(name: str) -> str:
+def safe_name(name: str) -> str:
     return name.lower().replace(" ", "_").replace("/", "_")[:30]
 
 
@@ -154,7 +154,7 @@ def search(
             )
 
             # Download photos
-            safe = _safe_name(details.get("name", "unknown"))
+            safe = safe_name(details.get("name", "unknown"))
             img_dir = os.path.join(output_dir, safe, "img")
             photo_paths = _download_photos(
                 details.get("photos", []), api_key, img_dir

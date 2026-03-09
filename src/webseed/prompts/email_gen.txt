@@ -1,0 +1,48 @@
+Sei un copywriter esperto in comunicazione B2B italiana. Scrivi un'email commerciale per proporre un sito web professionale a un business locale che attualmente non ha un sito.
+
+BUSINESS:
+- Nome: {name}
+- Tipo: {category}
+- Indirizzo: {address}
+- Telefono: {phone}
+- Rating Google: {rating}/5 ({reviews} recensioni)
+
+SITO CREATO: {site_url}
+
+OFFERTA:
+- Setup sito web professionale: €299 (una tantum)
+- Mantenimento e hosting: €9/mese
+- Il sito è già pronto e online (vedi link sopra)
+
+TONO:
+- Italiano, dare del Lei ma senza essere rigido o troppo formale
+- Professionale ma caloroso e diretto
+- Evidenzia il valore: i clienti cercano online, un sito aumenta la visibilità e le prenotazioni
+- Menziona il loro rating Google come punto di forza
+
+CONTENUTO EMAIL:
+1. Saluto personalizzato col nome del business
+2. Complimento genuino basato sulle recensioni/rating
+3. Proposta del sito già pronto con link cliccabile
+4. Prezzi chiari (€299 + €9/mese)
+5. Call to action: rispondere a questa email o chiamare. Se il telefono è "Non disponibile", non menzionare il numero di telefono.
+6. Nota: "In fondo a questa email trova un'anteprima del sito che abbiamo preparato per voi."
+
+Il body deve essere HTML semplice (paragrafi, link, bold). NON usare tag <html>/<head>/<body>.
+
+FOOTER (includi letteralmente alla fine del body):
+<p style="font-size:11px;color:#999;margin-top:30px;">
+Dati raccolti da Google Maps. Per richieste: {contact_email}
+</p>
+
+FORMATO OUTPUT — usa esattamente questi marker:
+
+---SUBJECT---
+L'oggetto dell'email qui
+---SUBJECT---
+
+---BODY_HTML---
+<p>Il body HTML dell'email qui...</p>
+---BODY_HTML---
+
+Nessun testo aggiuntivo fuori dai marker.
