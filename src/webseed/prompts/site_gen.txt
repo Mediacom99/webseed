@@ -16,11 +16,11 @@ REQUISITI TECNICI:
 - Design moderno e professionale adatto al settore
 
 SEZIONI OBBLIGATORIE (in quest'ordine):
-1. HERO — immagine/background full-width, nome business in grande, sottotitolo, CTA "Chiamaci ora" (href="tel:{phone}")
+1. HERO — immagine/background full-width, nome business in grande, sottotitolo, CTA "Chiamaci ora" (href="tel:{phone}"). Se il telefono è "Non disponibile", NON inserire link tel: e usa "Contattaci" come CTA generico.
 2. CHI SIAMO — 2-3 paragrafi caldi e professionali, basati sul tipo di business (non generici)
 3. SERVIZI — 3-4 card con icona emoji + titolo + descrizione breve
 4. GALLERIA — mostra le immagini disponibili ({gallery_instruction})
-5. CONTATTI — iframe Google Maps embed + tel cliccabile + indirizzo formattato
+5. CONTATTI — iframe Google Maps embed (USA QUESTO FORMATO SENZA API KEY: src="https://maps.google.com/maps?q=INDIRIZZO+ENCODATO&output=embed" — NON usare maps/embed/v1/ e NON inventare API key) + tel cliccabile + indirizzo formattato
 6. FOOTER — "© 2025 {name} · Tutti i diritti riservati"
 
 STILE:

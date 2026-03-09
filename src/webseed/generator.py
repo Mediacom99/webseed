@@ -1,12 +1,9 @@
-"""Claude API site generator — produces single-file HTML for a business."""
+"""Claude Code CLI site generator — produces single-file HTML for a business."""
 
 import os
 import re
 
-import anthropic
-
-CLAUDE_MODEL = "claude-opus-4-5"
-CLAUDE_MAX_TOKENS = 8000
+from webseed.claude_cli import run_claude_cli
 
 
 def _build_prompt(biz, prompt_template: str) -> str:
@@ -34,7 +31,7 @@ def _build_prompt(biz, prompt_template: str) -> str:
         name=biz.name,
         category=biz.category.replace("_", " "),
         address=biz.address,
-        phone=biz.phone or "—",
+        phone=biz.phone or "Non disponibile",
         rating=biz.rating,
         reviews=biz.reviews,
         images_block=images_block,
@@ -54,23 +51,21 @@ def generate(
     biz,
     output_dir: str,
     prompt_template: str,
-    api_key: str,
+    system_prompt: str,
+    model: str = "sonnet",
 ) -> str:
     """Generate index.html for the business. Returns the site directory path."""
-    safe_name = biz.name.lower().replace(" ", "_").replace("/", "_")[:30]
-    site_dir = os.path.join(output_dir, safe_name)
+    from webseed.maps import safe_name
+
+    safe = safe_name(biz.name)
+    site_dir = os.path.join(output_dir, safe)
     os.makedirs(site_dir, exist_ok=True)
 
     prompt = _build_prompt(biz, prompt_template)
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=CLAUDE_MAX_TOKENS,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
 
-    html = _strip_code_fences(message.content[0].text)
+    html = _strip_code_fences(raw_text)
 
     html_path = os.path.join(site_dir, "index.html")
     with open(html_path, "w", encoding="utf-8") as f:

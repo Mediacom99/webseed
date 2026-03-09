@@ -1,0 +1,24 @@
+# TODO
+
+- [ ] Add `--max-places` flag to `search` — limit how many Maps results are checked before stopping (currently pages through all ~60 results even if `--limit` is already met early)
+- [ ] Fix Unsplash fallback — `source.unsplash.com` is deprecated/dead. Either switch to Unsplash API, use a different stock photo source, or remove fallback entirely
+- [ ] Validate location in `search` — Google Maps treats nonsense locations as keyword searches (e.g. "Punto Nemo, Pacific Ocean" returns Italian restaurants). Consider geocoding the location first and warning if it doesn't resolve
+- [ ] Rewrite `emailer.py` to use Claude Code CLI (`claude_cli.py`) instead of Anthropic SDK (`config.py`/`call_claude()`). Remove `config.py` and `anthropic` dependency entirely — use Claude Code CLI everywhere
+- [ ] Allow selecting businesses by name (fuzzy/partial match) in addition to place_id for `generate`, `deploy`, `show`, `reset` etc.
+- [x] Vercel CLI: use the already-logged-in session instead of `--token`. Add `VERCEL_CLI_PATH` to config, check installed + logged in before deploy, stop with clear error if not
+- [ ] Comando `close` — blacklista un cliente, rimuove il deploy da Vercel (`vercel rm`), ma mantiene il sito in locale
+- [ ] Review completa logging e dati salvati a DB — cosa logghiamo, cosa salviamo per business, campi ridondanti o mancanti
+- [ ] Review completa configurazione — check CLI tools (claude, vercel, playwright), env vars, working directory setup, error messages chiari se manca qualcosa
+- [ ] Gestione avanzata Claude Code CLI — esporre flag configurabili (modello, timeout, max tokens, system prompt override, allowedTools, etc.) tramite CLI args o config. Verificare tutte le opzioni disponibili di `claude --print` e decidere quali esporre
+- [ ] Riscrivere prompt generazione frontend — passare da HTML statico a Vue.js SPA con DaisyUI components. Requisiti: responsive e fluido su ogni device, PageSpeed Insights score minimo 95 su tutte le metriche (performance, accessibility, best practices, SEO) sia desktop che mobile
+- [ ] Migliorare prompt generazione sito — più specifico su qualità output, gestione edge case (no foto, no telefono), stile per categoria, struttura HTML semantica
+- [ ] Migliorare prompt testing (code review + visual test) — checklist più completa, criteri più precisi, ridurre falsi positivi/negativi
+- [ ] Integrare PageSpeed Insights API nel pipeline — dopo il deploy, analizzare automaticamente performance/accessibility/best practices/SEO del sito. Usare i risultati per feedback al ciclo di fix o come gate di qualità prima di procedere all'email
+- [ ] Gestione CTRL-C (KeyboardInterrupt) — intercettare il segnale per fermarsi in modo pulito, salvare lo stato corrente del business nel DB (evitare stati transitori/inconsistenti), e uscire con messaggio chiaro
+- [ ] Tracking limiti Vercel — monitorare e avvisare sui limiti del piano free (numero progetti, bandwidth, build minutes, ecc.) prima di ogni deploy per evitare addebiti inattesi. Considerare comando `webseed limits` o check automatico pre-deploy
+- [ ] Recupero email business — Google Maps API non fornisce email. Esplorare alternative: scraping pagina Maps per link social/email, integrazione con API di business data (Hunter.io, Apollo, ecc.), o step manuale con comando `webseed set-email PLACE_ID email@example.com` per pre-popolare il campo "To" nei draft Gmail
+- [ ] Email: aggiungere clausola di scadenza — dopo X giorni senza risposta il sito viene rimosso automaticamente. Aggiungere opt-out facile ("rispondi a questa email per rimuovere il sito"). Verificare aspetto legale: chiarire che i dati usati sono pubblicamente accessibili da Google Maps
+- [ ] Email: personalizzare il tono come Edoardo Bertoli — freelance software engineer & digital nomad, non un bot. Includere link al sito personale, profilo LinkedIn, ecc. Far percepire che c'è una persona reale dietro, non un servizio automatizzato
+- [ ] Gestione dominio personalizzato — definire offerta per passaggio a dominio proprio del cliente (costo dominio, configurazione DNS, hosting). Oppure lasciare su Vercel come opzione base. Chiarire pricing e flow nel prompt email
+- [ ] Migliorare ranking risultati ricerca — ordinare business per "probabilità di conversione": più foto disponibili, rating alto, molte recensioni, categoria commerciale (ristoranti > associazioni). Prioritizzare business con più dati per generare siti migliori
+- [ ] Sconto lancio primi 10 clienti — sito a €199 invece di €299, aggiornare prompt email con offerta limitata e urgency ("solo per i primi 10 clienti")

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "webseed"
+version = "0.1.0"
+description = "Automated pipeline: find Italian businesses without websites, generate sites, deploy, and email outreach"
+requires-python = ">=3.11"
+dependencies = [
+    "googlemaps>=4.10.0",
+    "python-dotenv>=1.0.0",
+    "playwright>=1.40.0",
+    "requests>=2.31.0",
+    "tinydb>=4.8.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth-oauthlib>=1.2.0",
+]
+
+[project.scripts]
+webseed = "webseed.pipeline:main"

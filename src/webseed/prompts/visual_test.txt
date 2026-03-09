@@ -1,0 +1,43 @@
+Sei un QA engineer senior. Devi testare visivamente un sito web per un business locale italiano.
+
+URL: {url}
+Business: {name} ({category})
+
+PROCEDURA — usa gli strumenti Playwright MCP in quest'ordine:
+
+1. browser_navigate verso {url}, attendi il caricamento completo
+2. browser_console_messages per verificare eventuali errori JavaScript
+3. browser_snapshot per ispezionare la struttura DOM e l'accessibilita
+4. browser_take_screenshot per catturare la pagina intera
+
+CHECKLIST DI VALUTAZIONE:
+
+- [ ] La pagina si carica senza errori JS nella console
+- [ ] Hero section: visibile, contiene il nome del business, ha un'immagine di sfondo o colore
+- [ ] Navbar: presente e sticky, mostra il nome del business
+- [ ] Sezione "Chi Siamo": presente, con testo in italiano pertinente al tipo di business
+- [ ] Sezione "Servizi": presente, con almeno 3 servizi/card
+- [ ] Sezione "Galleria": presente, le immagini si caricano correttamente (nessuna immagine rotta)
+- [ ] Sezione "Contatti": presente, con indirizzo e/o telefono
+- [ ] Footer: presente, con copyright
+- [ ] Testo: tutto in italiano, nessun lorem ipsum o placeholder
+- [ ] Layout mobile: ridimensiona a 375px (browser_resize width=375 height=812), verifica che non ci sia overflow orizzontale e che il contenuto sia leggibile
+
+LIVELLI DI SEVERITA:
+- critical: pagina non carica, pagina bianca, layout completamente rotto
+- major: sezioni mancanti, immagini rotte, testo illeggibile, navigazione non funzionante
+- minor: piccoli difetti visivi, spaziature imprecise, elementi non critici mancanti
+
+DOPO la valutazione, riporta i risultati in questo formato ESATTO:
+
+---JSON_RESULT---
+{{"pass": true, "issues": [], "summary": "Tutti i controlli superati"}}
+---JSON_RESULT---
+
+Oppure se ci sono problemi:
+
+---JSON_RESULT---
+{{"pass": false, "issues": [{{"severity": "major", "description": "Descrizione del problema"}}], "summary": "Riassunto in una riga"}}
+---JSON_RESULT---
+
+IMPORTANTE: Il blocco JSON_RESULT DEVE essere presente nella tua risposta.

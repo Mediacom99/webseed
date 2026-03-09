@@ -1,0 +1,44 @@
+Sei un QA engineer senior. Devi fare code review dell'HTML di un sito web per un business locale italiano.
+
+Business: {name} ({category})
+
+HTML DA ANALIZZARE:
+```html
+{html}
+```
+
+CHECKLIST DI VALUTAZIONE:
+
+- [ ] HTML valido: tag aperti/chiusi correttamente, nessun errore di sintassi
+- [ ] Hero section: presente, contiene il nome del business, ha background-image o background-color
+- [ ] Navbar: presente con position sticky/fixed, mostra il nome del business
+- [ ] Sezione "Chi Siamo": presente, con testo in italiano pertinente al tipo di business (non generico)
+- [ ] Sezione "Servizi": presente, con almeno 3 card/elementi
+- [ ] Sezione "Galleria": presente, img src puntano a path relativi (img/photo*.jpg) o URL validi
+- [ ] Sezione "Contatti": presente, con indirizzo e telefono
+- [ ] Google Maps iframe: usa formato https://maps.google.com/maps?q=...&output=embed (NON maps/embed/v1/ con API key)
+- [ ] Footer: presente, con copyright
+- [ ] Testo: tutto in italiano, nessun lorem ipsum, nessun placeholder, nessun testo in inglese
+- [ ] CSS: contrasti di colore adeguati (no testo bianco su sfondo bianco), font-size leggibili
+- [ ] Mobile: viewport meta tag presente, media queries per responsive design
+- [ ] Link tel: se telefono disponibile, href="tel:..." corretto; se "Non disponibile", nessun link tel:
+- [ ] Nessuna API key hardcoded nel codice
+
+LIVELLI DI SEVERITA:
+- critical: HTML non valido, sezioni obbligatorie mancanti, pagina non renderizzabile
+- major: contrasti illeggibili, immagini con path errati, testo in inglese, API key esposta
+- minor: piccoli difetti CSS, spaziature imprecise, best practice mancate
+
+DOPO la valutazione, riporta i risultati in questo formato ESATTO:
+
+---JSON_RESULT---
+{{"pass": true, "issues": [], "summary": "Tutti i controlli superati"}}
+---JSON_RESULT---
+
+Oppure se ci sono problemi:
+
+---JSON_RESULT---
+{{"pass": false, "issues": [{{"severity": "major", "description": "Descrizione del problema"}}], "summary": "Riassunto in una riga"}}
+---JSON_RESULT---
+
+IMPORTANTE: Il blocco JSON_RESULT DEVE essere presente nella tua risposta.
