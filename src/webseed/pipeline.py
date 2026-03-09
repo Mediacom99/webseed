@@ -160,15 +160,12 @@ def cmd_generate(args) -> None:
 
     db = store.open_db(args.db)
 
-    if args.place_ids:
-        businesses = []
-        for doc in _resolve_many(db, args.place_ids):
-            if doc.get("status") != "searched":
-                print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'searched'. Usa reset prima.")
-            else:
-                businesses.append(doc)
-    else:
-        businesses = store.get_businesses_at_status(db, "searched")
+    businesses = []
+    for doc in _resolve_many(db, args.place_ids):
+        if doc.get("status") != "searched":
+            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'searched'. Usa reset prima.")
+        else:
+            businesses.append(doc)
 
     if not businesses:
         print("Nessun business da generare (status 'searched').")
@@ -207,15 +204,12 @@ def cmd_test(args) -> None:
 
     db = store.open_db(args.db)
 
-    if args.place_ids:
-        businesses = []
-        for doc in _resolve_many(db, args.place_ids):
-            if doc.get("status") != "generated":
-                print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'generated'. Usa reset prima.")
-            else:
-                businesses.append(doc)
-    else:
-        businesses = store.get_businesses_at_status(db, "generated")
+    businesses = []
+    for doc in _resolve_many(db, args.place_ids):
+        if doc.get("status") != "generated":
+            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'generated'. Usa reset prima.")
+        else:
+            businesses.append(doc)
 
     if not businesses:
         print("Nessun business da testare (status 'generated').")
@@ -351,15 +345,12 @@ def cmd_deploy(args) -> None:
 
     db = store.open_db(args.db)
 
-    if args.place_ids:
-        businesses = []
-        for doc in _resolve_many(db, args.place_ids):
-            if doc.get("status") != "tested":
-                print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'tested'. Usa test prima.")
-            else:
-                businesses.append(doc)
-    else:
-        businesses = store.get_businesses_at_status(db, "tested")
+    businesses = []
+    for doc in _resolve_many(db, args.place_ids):
+        if doc.get("status") != "tested":
+            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'tested'. Usa test prima.")
+        else:
+            businesses.append(doc)
 
     if not businesses:
         print("Nessun business da deployare (status 'tested').")
@@ -379,7 +370,7 @@ def cmd_deploy(args) -> None:
         try:
             # 1. Deploy
             print("  📤 Deploy in corso...")
-            prod_url = deployer.deploy(site_dir, vercel_bin, project_name=f"webseed-{safe}")
+            prod_url = deployer.deploy(site_dir, vercel_bin)
             store.update_status(
                 db, place_id, "deployed", {"vercel_url": prod_url}
             )
@@ -421,7 +412,13 @@ def cmd_email(args) -> None:
         raise SystemExit(1)
 
     db = store.open_db(args.db)
-    businesses = store.get_businesses_at_status(db, "deployed")
+
+    businesses = []
+    for doc in _resolve_many(db, args.place_ids):
+        if doc.get("status") != "deployed":
+            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'deployed'. Usa deploy prima.")
+        else:
+            businesses.append(doc)
 
     if not businesses:
         print("Nessun business da contattare (status 'deployed').")
@@ -585,7 +582,7 @@ def cmd_run(args) -> None:
                     vercel_bin = deployer.check_vercel_ready()
 
                 print("\n  📤 Deploy in corso...")
-                prod_url = deployer.deploy(site_dir, vercel_bin, project_name=f"webseed-{safe}")
+                prod_url = deployer.deploy(site_dir, vercel_bin)
                 store.update_status(db, place_id, "deployed", {"vercel_url": prod_url})
                 status = "deployed"
                 print(f"  🔗 {prod_url}")
@@ -958,7 +955,7 @@ def main() -> None:
 
     p_gen = sub.add_parser("generate", help="Genera siti HTML con Claude", parents=[common])
     p_gen.add_argument("--model", default="sonnet", help="Modello Claude (default: sonnet)")
-    p_gen.add_argument("place_ids", nargs="*", help="Place ID o nome business (default: tutti i 'searched')")
+    p_gen.add_argument("place_ids", nargs="+", help="Place ID o nome business")
     p_gen.set_defaults(func=cmd_generate)
 
     p_test = sub.add_parser("test", help="Code review + fix loop (locale)", parents=[common])
@@ -971,15 +968,16 @@ def main() -> None:
         "--test-model", default="sonnet",
         help="Modello Claude per test (default: sonnet)",
     )
-    p_test.add_argument("place_ids", nargs="*", help="Place ID o nome business (default: tutti i 'generated')")
+    p_test.add_argument("place_ids", nargs="+", help="Place ID o nome business")
     p_test.set_defaults(func=cmd_test)
 
     p_deploy = sub.add_parser("deploy", help="Deploy in produzione su Vercel", parents=[common])
-    p_deploy.add_argument("place_ids", nargs="*", help="Place ID o nome business (default: tutti i 'tested')")
+    p_deploy.add_argument("place_ids", nargs="+", help="Place ID o nome business")
     p_deploy.set_defaults(func=cmd_deploy)
 
     p_email = sub.add_parser("email", help="Crea draft email in Gmail", parents=[common])
     p_email.add_argument("--model", default="sonnet", help="Modello Claude (default: sonnet)")
+    p_email.add_argument("place_ids", nargs="+", help="Place ID o nome business")
     p_email.set_defaults(func=cmd_email)
 
     p_run = sub.add_parser("run", help="Pipeline completa: generate → test → deploy → email", parents=[common])
