@@ -48,9 +48,6 @@ def check_vercel_ready() -> str:
     return vercel_bin
 
 
-VERCEL_PROJECT_NAME = os.getenv("VERCEL_PROJECT_NAME", "webseed")
-
-
 def remove_deployment(vercel_bin: str, url: str) -> bool:
     """Remove a single Vercel deployment by URL. Returns True if removed."""
     result = subprocess.run(
@@ -64,8 +61,8 @@ def remove_deployment(vercel_bin: str, url: str) -> bool:
     return result.returncode == 0
 
 
-def deploy(site_dir: str, vercel_bin: str) -> str:
-    """Deploy to Vercel as a preview deployment. Returns the deployment URL."""
+def deploy(site_dir: str, vercel_bin: str, project_name: str = "webseed") -> str:
+    """Deploy to Vercel production. Returns the production URL."""
     # Write project name into vercel.json
     vercel_json_path = os.path.join(site_dir, "vercel.json")
     vercel_config = {}
@@ -75,15 +72,15 @@ def deploy(site_dir: str, vercel_bin: str) -> str:
                 vercel_config = json.load(f)
         except json.JSONDecodeError:
             vercel_config = {}
-    vercel_config["name"] = VERCEL_PROJECT_NAME
+    vercel_config["name"] = project_name
     with open(vercel_json_path, "w") as f:
         json.dump(vercel_config, f, indent=2)
         f.write("\n")
 
-    log.debug("Deploying: %s", site_dir)
+    log.debug("Deploying: %s (project: %s)", site_dir, project_name)
 
     result = subprocess.run(
-        [vercel_bin, "--yes"],
+        [vercel_bin, "--prod", "--yes"],
         cwd=site_dir,
         capture_output=True,
         text=True,

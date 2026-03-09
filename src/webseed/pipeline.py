@@ -379,7 +379,7 @@ def cmd_deploy(args) -> None:
         try:
             # 1. Deploy
             print("  📤 Deploy in corso...")
-            prod_url = deployer.deploy(site_dir, vercel_bin)
+            prod_url = deployer.deploy(site_dir, vercel_bin, project_name=f"webseed-{safe}")
             store.update_status(
                 db, place_id, "deployed", {"vercel_url": prod_url}
             )
@@ -473,6 +473,14 @@ def cmd_run(args) -> None:
     """Run the full pipeline (generate → test → deploy → email) for specific businesses."""
     from webseed import deployer, emailer, generator, tester
     from webseed.maps import safe_name
+
+    if args.hard:
+        args.model = "opus"
+        args.test_model = "opus"
+        args.max_fix_iterations = 3
+        args.verbose = True
+        logging.getLogger().setLevel(logging.DEBUG)
+        print("🔥 --hard: model=opus, test-model=opus, max-fix-iterations=3, verbose=on")
 
     db = store.open_db(args.db)
 
@@ -577,7 +585,7 @@ def cmd_run(args) -> None:
                     vercel_bin = deployer.check_vercel_ready()
 
                 print("\n  📤 Deploy in corso...")
-                prod_url = deployer.deploy(site_dir, vercel_bin)
+                prod_url = deployer.deploy(site_dir, vercel_bin, project_name=f"webseed-{safe}")
                 store.update_status(db, place_id, "deployed", {"vercel_url": prod_url})
                 status = "deployed"
                 print(f"  🔗 {prod_url}")
@@ -980,6 +988,7 @@ def main() -> None:
     p_run.add_argument("--test-model", default="sonnet", help="Modello Claude per test (default: sonnet)")
     p_run.add_argument("--max-fix-iterations", type=int, default=3, help="Max cicli fix-retest (default: 3)")
     p_run.add_argument("--no-email", action="store_true", help="Skip step email")
+    p_run.add_argument("--hard", action="store_true", help="Deep run: opus models, 3 fix iterations, verbose")
     p_run.set_defaults(func=cmd_run)
 
     # --- Management subcommands ---
