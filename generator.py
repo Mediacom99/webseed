@@ -4,9 +4,11 @@ import os
 import re
 
 import anthropic
+import httpx
 
 CLAUDE_MODEL = "claude-opus-4-5"
 CLAUDE_MAX_TOKENS = 8000
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 
 def _build_prompt(biz, prompt_template: str) -> str:
@@ -63,14 +65,35 @@ def generate(
 
     prompt = _build_prompt(biz, prompt_template)
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=CLAUDE_MAX_TOKENS,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    if api_key.startswith("sk-ant-oat"):
+        # OAuth tokens (from `claude setup-token`) need Bearer auth + oauth beta header
+        resp = httpx.post(
+            ANTHROPIC_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "anthropic-version": "2023-06-01",
+                "anthropic-beta": "oauth-2025-04-20",
+                "content-type": "application/json",
+            },
+            json={
+                "model": CLAUDE_MODEL,
+                "max_tokens": CLAUDE_MAX_TOKENS,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        raw_text = resp.json()["content"][0]["text"]
+    else:
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=CLAUDE_MAX_TOKENS,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_text = message.content[0].text
 
-    html = _strip_code_fences(message.content[0].text)
+    html = _strip_code_fences(raw_text)
 
     html_path = os.path.join(site_dir, "index.html")
     with open(html_path, "w", encoding="utf-8") as f:

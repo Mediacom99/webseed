@@ -70,6 +70,37 @@ def _download_photos(
     return paths
 
 
+def _fetch_all_pages(gmaps, query: str, location: str) -> list[dict]:
+    """Fetch all pages of Places results for a single query string."""
+    import time
+    results = gmaps.places(query=f"{query} {location}")
+    places = list(results.get("results", []))
+
+    while "next_page_token" in results:
+        time.sleep(2)  # Google requires a short delay before using next_page_token
+        results = gmaps.places(
+            query=f"{query} {location}",
+            page_token=results["next_page_token"],
+        )
+        places.extend(results.get("results", []))
+
+    return places
+
+
+# Synonyms to broaden search when initial query doesn't find enough results
+QUERY_VARIANTS = {
+    "ristorante": ["trattoria", "osteria", "pizzeria", "tavola calda"],
+    "parrucchiere": ["barbiere", "salone bellezza", "hair salon"],
+    "bar": ["caffè", "caffetteria", "pub"],
+    "pizzeria": ["ristorante pizzeria", "pizza al taglio"],
+    "dentista": ["studio dentistico", "odontoiatra"],
+    "meccanico": ["autofficina", "carrozzeria", "gommista"],
+    "idraulico": ["termoidraulica", "impiantista"],
+    "elettricista": ["impianti elettrici"],
+    "falegname": ["falegnameria", "arredamenti"],
+}
+
+
 def search(
     query: str,
     location: str,
@@ -80,62 +111,73 @@ def search(
     """Search Maps for businesses without a website, download their photos."""
     gmaps = googlemaps.Client(key=api_key)
 
-    # Places API returns max ~20 per call; fetch extra to compensate for filtering
-    results = gmaps.places(query=f"{query} {location}")
-    places = results.get("results", [])[:limit * 2]
-
+    # Build list of queries: original + synonyms
+    queries = [query] + QUERY_VARIANTS.get(query.lower(), [])
+    seen_place_ids: set[str] = set()
     businesses: list[BusinessData] = []
 
-    for place in places:
+    for q in queries:
         if len(businesses) >= limit:
             break
 
-        details = gmaps.place(
-            place["place_id"],
-            fields=[
-                "name", "formatted_address", "formatted_phone_number",
-                "rating", "user_ratings_total", "website", "photos",
-                "types", "url",
-            ],
-        ).get("result", {})
+        print(f"  🔎 Searching: {q} {location}")
+        places = _fetch_all_pages(gmaps, q, location)
 
-        # Skip businesses that already have a website
-        if details.get("website"):
-            print(f"  Skip: {details.get('name', '?')} — has website")
-            continue
+        for place in places:
+            if len(businesses) >= limit:
+                break
 
-        # Determine primary category
-        types = details.get("types", ["establishment"])
-        category = next(
-            (t for t in types if t in CATEGORY_UNSPLASH),
-            types[0] if types else "establishment",
-        )
+            place_id = place["place_id"]
+            if place_id in seen_place_ids:
+                continue
+            seen_place_ids.add(place_id)
 
-        # Download photos
-        safe = _safe_name(details.get("name", "unknown"))
-        img_dir = os.path.join(output_dir, safe, "img")
-        photo_paths = _download_photos(
-            details.get("photos", []), api_key, img_dir
-        )
+            details = gmaps.place(
+                place_id,
+                fields=[
+                    "name", "formatted_address", "formatted_phone_number",
+                    "rating", "user_ratings_total", "website", "photo",
+                    "type", "url",
+                ],
+            ).get("result", {})
 
-        # Unsplash fallback URL
-        unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
-        fallback_url = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
+            # Skip businesses that already have a website
+            if details.get("website"):
+                print(f"  Skip: {details.get('name', '?')} — has website")
+                continue
 
-        biz = BusinessData(
-            name=details.get("name", ""),
-            place_id=place["place_id"],
-            address=details.get("formatted_address", ""),
-            phone=details.get("formatted_phone_number"),
-            rating=details.get("rating", 0.0),
-            reviews=details.get("user_ratings_total", 0),
-            category=category,
-            maps_url=details.get("url", ""),
-            has_photos=len(photo_paths) > 0,
-            photo_paths=photo_paths,
-            fallback_unsplash_url=fallback_url,
-        )
-        businesses.append(biz)
-        print(f"  Found: {biz.name} — no website ✓")
+            # Determine primary category
+            types = details.get("types", ["establishment"])
+            category = next(
+                (t for t in types if t in CATEGORY_UNSPLASH),
+                types[0] if types else "establishment",
+            )
+
+            # Download photos
+            safe = _safe_name(details.get("name", "unknown"))
+            img_dir = os.path.join(output_dir, safe, "img")
+            photo_paths = _download_photos(
+                details.get("photos", []), api_key, img_dir
+            )
+
+            # Unsplash fallback URL
+            unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
+            fallback_url = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
+
+            biz = BusinessData(
+                name=details.get("name", ""),
+                place_id=place_id,
+                address=details.get("formatted_address", ""),
+                phone=details.get("formatted_phone_number"),
+                rating=details.get("rating", 0.0),
+                reviews=details.get("user_ratings_total", 0),
+                category=category,
+                maps_url=details.get("url", ""),
+                has_photos=len(photo_paths) > 0,
+                photo_paths=photo_paths,
+                fallback_unsplash_url=fallback_url,
+            )
+            businesses.append(biz)
+            print(f"  Found: {biz.name} — no website ✓ ({len(businesses)}/{limit})")
 
     return businesses

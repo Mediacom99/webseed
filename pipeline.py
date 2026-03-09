@@ -36,6 +36,10 @@ def main() -> None:
         help="Esegui smoke test Playwright dopo deploy",
     )
     parser.add_argument(
+        "--no-deploy", action="store_true",
+        help="Genera siti senza deploy su Vercel",
+    )
+    parser.add_argument(
         "--results-dir", default="results",
         help="Directory output (default: results/)",
     )
@@ -46,7 +50,10 @@ def main() -> None:
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     vercel_token = os.getenv("VERCEL_TOKEN")
 
-    if not maps_key or not anthropic_key or not vercel_token:
+    required_missing = not maps_key or not anthropic_key
+    if not args.no_deploy and not vercel_token:
+        required_missing = True
+    if required_missing:
         print("❌ Mancano variabili d'ambiente. Copia .env.example in .env e compila.")
         raise SystemExit(1)
 
@@ -58,7 +65,8 @@ def main() -> None:
     # Import modules
     import maps
     import generator
-    import deployer
+    if not args.no_deploy:
+        import deployer
 
     print(f"\n🌱 webseed starting...")
     print(f"   Query: {args.query} in {args.location}")
@@ -103,9 +111,13 @@ def main() -> None:
             )
 
             # Deploy
-            print("  🚀 Deploying to Vercel...")
-            url = deployer.deploy(site_dir, vercel_token)
-            print(f"  ✅ {url}")
+            if args.no_deploy:
+                url = f"file://{os.path.abspath(os.path.join(site_dir, 'index.html'))}"
+                print(f"  📂 {url}")
+            else:
+                print("  🚀 Deploying to Vercel...")
+                url = deployer.deploy(site_dir, vercel_token)
+                print(f"  ✅ {url}")
 
             # Optional smoke test
             if args.test:
