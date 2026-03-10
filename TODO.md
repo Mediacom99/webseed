@@ -3,9 +3,6 @@
 - [ ] Add `--max-places` flag to `search` — limit how many Maps results are checked before stopping (currently pages through all ~60 results even if `--limit` is already met early)
 - [ ] Fix Unsplash fallback — `source.unsplash.com` is deprecated/dead. Either switch to Unsplash API, use a different stock photo source, or remove fallback entirely
 - [ ] Validate location in `search` — Google Maps treats nonsense locations as keyword searches (e.g. "Punto Nemo, Pacific Ocean" returns Italian restaurants). Consider geocoding the location first and warning if it doesn't resolve
-- [ ] Rewrite `emailer.py` to use Claude Code CLI (`claude_cli.py`) instead of Anthropic SDK (`config.py`/`call_claude()`). Remove `config.py` and `anthropic` dependency entirely — use Claude Code CLI everywhere
-- [ ] Allow selecting businesses by name (fuzzy/partial match) in addition to place_id for `generate`, `deploy`, `show`, `reset` etc.
-- [x] Vercel CLI: use the already-logged-in session instead of `--token`. Add `VERCEL_CLI_PATH` to config, check installed + logged in before deploy, stop with clear error if not
 - [ ] Comando `close` — blacklista un cliente, rimuove il deploy da Vercel (`vercel rm`), ma mantiene il sito in locale
 - [ ] Review completa logging e dati salvati a DB — cosa logghiamo, cosa salviamo per business, campi ridondanti o mancanti
 - [ ] Review completa configurazione — check CLI tools (claude, vercel, playwright), env vars, working directory setup, error messages chiari se manca qualcosa

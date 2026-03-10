@@ -5,9 +5,10 @@
 webseed è una pipeline CLI che:
 1. Trova business locali italiani **senza sito web** su Google Maps
 2. Genera un **sito HTML professionale** per ognuno con Claude AI
-3. Lo deploya su **Vercel** (preview → test automatico → produzione)
-4. Crea una **email personalizzata** come bozza in Gmail, pronta da inviare
-5. Tiene traccia di tutto in un **database locale** (TinyDB)
+3. Testa il sito con **code review automatica** e fix loop
+4. Lo deploya su **Vercel** con URL pubblico unico
+5. Crea una **email personalizzata** come bozza in Gmail, pronta da inviare
+6. Tiene traccia di tutto in un **database locale** (TinyDB)
 
 Ogni step è indipendente e ripetibile. Puoi fermarti a qualsiasi punto e riprendere dopo.
 
@@ -15,12 +16,15 @@ Ogni step è indipendente e ripetibile. Puoi fermarti a qualsiasi punto e ripren
 
 ## Setup Iniziale
 
-### 1. Ambiente Python
+### 1. Installazione
 
 ```bash
+git clone https://github.com/Mediacom99/webseed.git
+cd webseed
 python -m venv .venv
 source .venv/bin/activate    # su macOS/Linux
-pip install -r requirements.txt
+pip install -e .
+playwright install chromium  # per visual testing e screenshot email
 ```
 
 ### 2. Variabili d'ambiente
@@ -34,40 +38,36 @@ Compila `.env` con:
 | Variabile | Dove trovarla | Quando serve |
 |-----------|--------------|--------------|
 | `GOOGLE_MAPS_API_KEY` | [Google Cloud Console](https://console.cloud.google.com/) → API → Places API (legacy) | `search` |
-| `ANTHROPIC_API_KEY` | [Anthropic Console](https://console.anthropic.com/) oppure `claude setup-token` per MAX | `generate`, `email` |
-| `VERCEL_TOKEN` | [Vercel Dashboard](https://vercel.com/account/tokens) | `deploy` |
-| `GMAIL_CREDENTIALS_FILE` | GCP → Gmail API → OAuth credentials (vedi sotto) | `email` |
 | `CONTACT_EMAIL` | La tua email di contatto | `email` |
+| `GMAIL_CREDENTIALS_FILE` | GCP → Gmail API → OAuth credentials (vedi sotto) | `email` |
+| `SENDER_NAME` | (opzionale) Nome mittente nelle email | `email` |
+| `CLAUDE_CLI_PATH` | (opzionale) Path al binario Claude Code CLI — auto-detect se nel PATH | tutti gli step AI |
+| `VERCEL_CLI_PATH` | (opzionale) Path al binario Vercel CLI — auto-detect se nel PATH | `deploy` |
 
-### 3. Vercel CLI
+> **Nota:** Claude Code CLI e Vercel CLI gestiscono la propria autenticazione autonomamente. Non serve nessun API key o token nel `.env` per questi tool.
 
-```bash
-npm i -g vercel
-```
+### 3. Prerequisiti CLI
 
-### 4. Playwright (per smoke test e screenshot)
+- **Claude Code CLI** — installato e autenticato ([docs](https://docs.anthropic.com/en/docs/claude-code))
+- **Vercel CLI** — installato e loggato (`npm i -g vercel`)
 
-```bash
-playwright install chromium
-```
-
-### 5. Gmail API (solo per lo step `email`)
+### 4. Gmail API (solo per lo step `email`)
 
 1. Vai su [Google Cloud Console](https://console.cloud.google.com/)
 2. Abilita la **Gmail API**
 3. Configura **OAuth consent screen** → External
 4. Crea **Credentials** → OAuth client ID → Desktop app
 5. Scarica il JSON e salvalo come `credentials.json` nella root del progetto
-6. Al primo `python pipeline.py email`, si aprirà il browser per il consenso OAuth → verrà salvato `token.json`
+6. Al primo `webseed email`, si aprirà il browser per il consenso OAuth → verrà salvato `token.json`
 
 ---
 
-## Pipeline — I 4 Step
+## Pipeline — I 5 Step
 
 ### Step 1: `search` — Trova business su Google Maps
 
 ```bash
-python pipeline.py search --location "Milano, Italy" --query "ristorante" --limit 5
+webseed search --location "Milano, Italy" --query "ristorante" --limit 5
 ```
 
 **Cosa fa:**
@@ -93,15 +93,20 @@ python pipeline.py search --location "Milano, Italy" --query "ristorante" --limi
 ### Step 2: `generate` — Genera siti HTML con Claude
 
 ```bash
-python pipeline.py generate
+webseed generate PLACE_ID "nome business"
 ```
 
 **Cosa fa:**
-- Prende tutti i business con status `searched` dal database
-- Per ognuno, chiama Claude AI con i dati del business
+- Prende i business specificati (per place_id o nome parziale)
+- Per ognuno, chiama Claude Code CLI con i dati del business
 - Genera un file `index.html` completo (HTML + CSS + JS inline)
 - Il sito include: hero, chi siamo, servizi, galleria foto, contatti con mappa, footer
 - Tutto in italiano, con design professionale e responsive
+
+**Flag:**
+| Flag | Descrizione | Default |
+|------|-------------|---------|
+| `--model` | Modello Claude da usare | default CLI |
 
 **Output per ogni business:**
 ```
@@ -120,32 +125,53 @@ results/{nome_business}/
 
 ---
 
-### Step 3: `deploy` — Deploy su Vercel (preview → test → prod)
+### Step 3: `test` — Code review e fix automatico
 
 ```bash
-python pipeline.py deploy
+webseed test PLACE_ID "nome business"
+webseed test PLACE_ID --playwright          # anche visual test con Playwright
+webseed test PLACE_ID --max-fix-iterations 1  # limita cicli di fix (default: 3)
 ```
 
-**Cosa fa per ogni business con status `generated`:**
+**Cosa fa:**
 
-1. **Preview deploy** — deploya su un URL di anteprima (no produzione)
-2. **Smoke test** — Playwright carica la pagina, verifica che funzioni
-3. **Screenshot email** — cattura un'immagine 1280x600 dell'above-the-fold per l'email
-4. **Promozione a prod** — se il test passa, promuove a produzione
+1. **Code review** (sempre) — Claude Code CLI analizza il sorgente `index.html` contro una QA checklist. Solo testo, nessun browser.
+2. **Visual test** (con `--playwright`) — Claude Code CLI + Playwright MCP apre il file locale, fa screenshot, ispeziona il DOM, verifica errori console.
+3. **Fix loop** (se il test trova problemi) — Claude Code CLI corregge l'HTML e ritesta, fino a `--max-fix-iterations` cicli.
 
-**Naming Vercel:** ogni progetto si chiama `webseed-{nome-slugificato}`, es:
-- "Ristorante Da Mario" → `webseed-ristorante-da-mario.vercel.app`
+**Flag:**
+| Flag | Descrizione | Default |
+|------|-------------|---------|
+| `--playwright` | Abilita visual test con Playwright | disabilitato |
+| `--test-model` | Modello Claude per il testing | sonnet |
+| `--max-fix-iterations` | Numero massimo di cicli fix-retest | 3 |
 
-**Status risultante:** `deployed` (passa per `preview_deployed` → `tested` → `deployed`)
+**Status risultante:** `tested` (o `error_test` in caso di errore)
 
-Se il smoke test fallisce, il business resta a `error_test` e non viene promosso.
+**Costo:** ~$0.05-0.10 per test, ~$0.03-0.05 per fix
 
 ---
 
-### Step 4: `email` — Crea bozze email in Gmail
+### Step 4: `deploy` — Deploy su Vercel
 
 ```bash
-python pipeline.py email
+webseed deploy PLACE_ID "nome business"
+```
+
+**Cosa fa per ogni business con status `tested`:**
+
+1. **Deploy** — deploya sotto un singolo progetto `webseed` su Vercel. Ogni business riceve un URL pubblico permanente e unico.
+2. **Screenshot email** — cattura un'immagine 1280x600 dell'above-the-fold per l'email via Python Playwright (non bloccante se fallisce).
+
+**Status risultante:** `deployed` (o `error_deploy` in caso di errore)
+
+---
+
+### Step 5: `email` — Crea bozze email in Gmail
+
+```bash
+webseed email PLACE_ID "nome business"
+webseed email PLACE_ID --model opus    # modello specifico
 ```
 
 **Cosa fa per ogni business con status `deployed`:**
@@ -162,6 +188,11 @@ python pipeline.py email
    - Screenshot del sito embeddata come immagine inline
    - Campo `To:` vuoto (da compilare manualmente, perché Maps spesso non ha email)
 
+**Flag:**
+| Flag | Descrizione | Default |
+|------|-------------|---------|
+| `--model` | Modello Claude da usare | default CLI |
+
 **Come inviare:** apri Gmail → cerca la label `webseed-queue` → rivedi ogni bozza → aggiungi destinatario → invia.
 
 **Status risultante:** `email_queued`
@@ -170,115 +201,96 @@ python pipeline.py email
 
 ---
 
+## Comando `run` — Pipeline Completa
+
+```bash
+webseed run PLACE_ID [PLACE_ID...]       # pipeline completa per business specifici
+webseed run "nome business" --no-email   # salta lo step email
+webseed run PLACE_ID --model opus        # modello specifico per generazione/email
+webseed run PLACE_ID --hard              # qualità massima: opus, 3 fix iterations, verbose
+```
+
+Esegue `generate → test → deploy → email` in sequenza per i business specificati.
+
+**Flag:**
+| Flag | Descrizione | Default |
+|------|-------------|---------|
+| `--model` | Modello per generazione e email | default CLI |
+| `--test-model` | Modello per testing | sonnet |
+| `--max-fix-iterations` | Cicli fix-retest | 3 |
+| `--no-email` | Salta lo step email | — |
+| `--hard` | Deep run: opus, 3 fix iterations, verbose | — |
+
+---
+
 ## Comandi di Gestione
 
 ### `status` — Vedi lo stato di tutti i business
 
 ```bash
-# Tutti i business
-python pipeline.py status
-
-# Solo quelli deployati
-python pipeline.py status --filter deployed
-
-# Solo gli errori
-python pipeline.py status --filter error
+webseed status                         # tutti
+webseed status --filter deployed       # solo deployati
+webseed status --filter error          # solo errori
 ```
 
-Mostra una tabella con: nome, status, URL Vercel, data ultimo aggiornamento.
-
-Il filtro funziona per prefisso: `--filter error` mostra `error_generate`, `error_deploy`, `error_test`, ecc.
-
----
+Mostra una tabella con: nome, status, URL Vercel, data ultimo aggiornamento. Il filtro funziona per prefisso.
 
 ### `show` — Dettaglio completo di un business
 
 ```bash
-python pipeline.py show ChIJxxxxxxxxxxxxxxx
+webseed show PLACE_ID
+webseed show "nome parziale"
 ```
 
 Mostra tutti i campi del business: nome, indirizzo, telefono, rating, status, URL, screenshot, date, ecc.
 
-Il `place_id` lo trovi nell'output di `status`.
-
----
-
 ### `stats` — Statistiche riassuntive
 
 ```bash
-python pipeline.py stats
+webseed stats
 ```
 
-Mostra:
-- Totale business nel database
-- Conteggio per ogni status (quanti searched, generated, deployed, ecc.)
-- Data dell'ultimo aggiornamento
+Conteggio per ogni status + totale business nel database.
 
----
-
-### `blacklist-add` — Blocca business
+### `blacklist-add` / `blacklist-remove` / `blacklist-list`
 
 ```bash
-# Uno o più place_id
-python pipeline.py blacklist-add ChIJxxxxx ChIJyyyyy
+webseed blacklist-add PLACE_ID [PLACE_ID...]    # blocca
+webseed blacklist-remove PLACE_ID               # sblocca
+webseed blacklist-list                          # mostra tutti
 ```
 
-Il business viene:
-- Aggiunto a `blacklist.txt` (file locale)
-- Marcato come `opted_out` nel database
-- Saltato automaticamente nelle ricerche future
+Il business bloccato viene marcato come `opted_out` nel database e saltato automaticamente.
 
-Utile per business che hanno detto no, che non vuoi contattare, o che nel frattempo hanno un sito.
-
----
-
-### `blacklist-remove` — Sblocca un business
+### `reset` — Resetta lo status
 
 ```bash
-python pipeline.py blacklist-remove ChIJxxxxx
+webseed reset PLACE_ID --to searched    # rigenerare il sito
+webseed reset PLACE_ID --to generated   # ritestare
+webseed reset PLACE_ID --to tested      # ri-deployare
+webseed reset PLACE_ID --to deployed    # ricreare l'email
 ```
 
-Rimuove il place_id da `blacklist.txt`. Se vuoi anche resettarne lo status nel DB, usa `reset` dopo.
-
----
-
-### `blacklist-list` — Mostra la blacklist completa
+### `db-delete` — Rimuovi dal database
 
 ```bash
-python pipeline.py blacklist-list
+webseed db-delete PLACE_ID [PLACE_ID...]       # rimuovi specifici (mantiene file e Vercel)
+webseed db-delete --all --skip PLACE_ID        # rimuovi tutti tranne quelli specificati
 ```
 
-Mostra tutti i place_id bloccati (unione di `blacklist.txt` + status `opted_out` nel database).
-
----
-
-### `reset` — Resetta lo status di un business
+### `hard-delete` — Rimuovi tutto
 
 ```bash
-# Resetta a "searched" per rigenerare il sito
-python pipeline.py reset ChIJxxxxx --to searched
-
-# Resetta a "generated" per ri-deployare
-python pipeline.py reset ChIJxxxxx --to generated
-
-# Resetta a "deployed" per ricreare l'email
-python pipeline.py reset ChIJxxxxx --to deployed
+webseed hard-delete PLACE_ID [PLACE_ID...]     # DB + file locali + deploy Vercel
+webseed hard-delete --blacklist PLACE_ID       # come sopra ma mantiene come blacklistato
+webseed hard-delete -y PLACE_ID                # senza conferma
 ```
-
-Utile quando:
-- Un business era in errore e vuoi riprovare
-- Vuoi rigenerare il sito con un prompt aggiornato
-- Vuoi rifare il deploy
-
----
 
 ### `export-csv` — Esporta in CSV
 
 ```bash
-python pipeline.py export-csv --output results.csv
+webseed export-csv --output results.csv
 ```
-
-Esporta l'intero database in formato CSV. Utile per analisi in Excel/Google Sheets o per condividere i dati.
 
 ---
 
@@ -286,13 +298,11 @@ Esporta l'intero database in formato CSV. Utile per analisi in Excel/Google Shee
 
 Questi flag si applicano a **tutti** i comandi:
 
-```bash
-# Database diverso (default: webseed.json)
-python pipeline.py --db altro.json search --location "Roma" --query "bar"
-
-# Directory output diversa (default: results/)
-python pipeline.py --results-dir output/ generate
-```
+| Flag | Descrizione | Default |
+|------|-------------|---------|
+| `--db` | File database TinyDB | `webseed.json` |
+| `--results-dir` | Directory output | `results/` |
+| `-v` / `--verbose` | Logging DEBUG | disabilitato |
 
 ---
 
@@ -300,49 +310,65 @@ python pipeline.py --results-dir output/ generate
 
 ```bash
 # 1. Cerca ristoranti a Milano
-python pipeline.py search --location "Milano, Italy" --query "ristorante" --limit 10
+webseed search --location "Milano, Italy" --query "ristorante" --limit 10
 
 # 2. Controlla cosa ha trovato
-python pipeline.py status
-python pipeline.py stats
+webseed status
+webseed stats
 
-# 3. Genera i siti
-python pipeline.py generate
+# 3. Pipeline completa per business specifici
+webseed run "ristorante da mario" "pizzeria bella napoli"
 
-# 4. Deploya (preview → test → prod)
-python pipeline.py deploy
+# oppure step by step:
+webseed generate "ristorante da mario"
+webseed test "ristorante da mario"
+webseed deploy "ristorante da mario"
+webseed email "ristorante da mario"
 
-# 5. Controlla i risultati
-python pipeline.py status --filter deployed
+# 4. Controlla i risultati
+webseed status --filter deployed
 
-# 6. Crea le email
-python pipeline.py email
+# 5. Vai su Gmail, cerca label "webseed-queue", rivedi e invia
 
-# 7. Vai su Gmail, cerca label "webseed-queue", rivedi e invia
-
-# 8. Esporta tutto in CSV se serve
-python pipeline.py export-csv
+# 6. Esporta tutto in CSV se serve
+webseed export-csv
 ```
 
 ---
 
 ## Gestione Errori
 
-Se un business fallisce durante uno step, viene marcato con lo status corrispondente (es. `error_generate`, `error_deploy`). Gli altri business continuano normalmente.
+Se un business fallisce durante uno step, viene marcato con lo status corrispondente (es. `error_generate`, `error_test`). Gli altri business continuano normalmente.
 
 Per ritentare:
 
 ```bash
 # Vedi quali sono in errore
-python pipeline.py status --filter error
+webseed status --filter error
 
 # Guarda il dettaglio dell'errore
-python pipeline.py show ChIJxxxxx
+webseed show PLACE_ID
 
 # Resetta e riprova
-python pipeline.py reset ChIJxxxxx --to searched
-python pipeline.py generate
+webseed reset PLACE_ID --to searched
+webseed generate PLACE_ID
 ```
+
+---
+
+## Status di un Business
+
+Un business attraversa questi stati durante la pipeline:
+
+```
+searched → generated → tested → deployed → email_queued
+```
+
+Stati di errore: `error_generate`, `error_test`, `error_deploy`, `error_email`
+
+Stato speciale: `opted_out` (blacklistato)
+
+Puoi resettare qualsiasi business a uno stato precedente con `reset` per riprocessarlo. La maggior parte dei comandi accetta place_id o nomi parziali (case-insensitive).
 
 ---
 
@@ -359,16 +385,15 @@ python pipeline.py generate
 
 ---
 
-## Status di un Business
+## Costi
 
-Un business attraversa questi stati durante la pipeline:
+| Step | Costo per business |
+|------|-------------------|
+| Generate | ~$0.07 |
+| Test (code review) | ~$0.05-0.10 |
+| Fix (per iterazione) | ~$0.03-0.05 |
+| Email | ~$0.03 |
+| **Caso peggiore (3 cicli fix)** | **~$0.40-0.70** |
+| **Caso ottimale (no fix)** | **~$0.15** |
 
-```
-searched → generated → preview_deployed → tested → deployed → email_queued → emailed
-```
-
-Stati di errore: `error_search`, `error_generate`, `error_deploy`, `error_test`, `error_email`
-
-Stato speciale: `opted_out` (blacklistato)
-
-Puoi resettare qualsiasi business a uno stato precedente con `reset` per riprocessarlo.
+Tutti i costi sono da Claude Code CLI. Google Maps API e Vercel hanno i propri free tier.
