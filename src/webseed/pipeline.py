@@ -59,6 +59,16 @@ def _doc_to_business_data(doc: dict[str, Any]) -> BusinessData:
         has_photos=len(photo_paths) > 0,
         photo_paths=photo_paths,
         fallback_unsplash_url=str(doc.get("fallback_unsplash_url", "")),
+        lead_score=int(doc.get("lead_score", 0)),
+        price_level=doc.get("price_level"),
+        business_status=str(doc.get("business_status", "OPERATIONAL")),
+        primary_type=doc.get("primary_type"),
+        types=doc.get("types"),
+        has_opening_hours=bool(doc.get("has_opening_hours", False)),
+        opening_hours_summary=doc.get("opening_hours_summary"),
+        accepts_credit_cards=doc.get("accepts_credit_cards"),
+        editorial_summary=doc.get("editorial_summary"),
+        review_texts=doc.get("review_texts"),
     )
 
 
@@ -128,19 +138,30 @@ def cmd_search(args: argparse.Namespace) -> None:
     blacklist = store.get_full_blacklist(db)
     run = _run_id("search")
 
+    # Parse raw types if provided
+    raw_types: list[str] | None = None
+    if hasattr(args, "types") and args.types:
+        raw_types = [t.strip() for t in args.types.split(",") if t.strip()]
+
     print(f"\n🌱 webseed search")
     print(f"   Query: {args.query} in {args.location}")
-    print(f"   Limit: {args.limit} business\n")
+    print(f"   Limit: {args.limit} | Min score: {args.min_score} | Grid: {args.grid_size}x{args.grid_size}")
+    if raw_types:
+        print(f"   Raw types: {raw_types}")
+    print()
 
-    print("🔍 Ricerca business su Maps...")
+    print("🔍 Ricerca business su Maps (new Places API v1)...")
     businesses = maps.search(
         query=args.query,
         location=args.location,
         limit=args.limit,
         api_key=env["GOOGLE_MAPS_API_KEY"],
         output_dir=args.results_dir,
+        min_score=args.min_score,
+        grid_size=args.grid_size,
+        raw_types=raw_types,
     )
-    print(f"\n✓ Trovati {len(businesses)} business senza sito\n")
+    print(f"\n✓ Trovati {len(businesses)} business qualificati\n")
 
     inserted = updated = skipped = 0
     for biz in businesses:
@@ -151,10 +172,10 @@ def cmd_search(args: argparse.Namespace) -> None:
 
         result = store.upsert_business(db, biz, run)
         if result == "inserted":
-            print(f"  ✅ Nuovo: {biz.name}")
+            print(f"  ✅ Nuovo: {biz.name} (score: {biz.lead_score})")
             inserted += 1
         else:
-            print(f"  🔄 Aggiornato: {biz.name}")
+            print(f"  🔄 Aggiornato: {biz.name} (score: {biz.lead_score})")
             updated += 1
 
     print(f"\n📊 {inserted} nuovi, {updated} aggiornati, {skipped} blacklisted")
@@ -692,16 +713,17 @@ def cmd_status(args: argparse.Namespace) -> None:
             return
 
     # Print table
-    print(f"\n{'Nome':<25} {'Status':<20} {'URL':<55} {'Place ID':<30}")
+    print(f"\n{'Nome':<25} {'Score':>5} {'Status':<18} {'URL':<50} {'Place ID':<30}")
     print("─" * 130)
     for doc in filtered_docs:
         name = str(doc.get("name", ""))[:24]
+        score = str(doc.get("lead_score", "—"))
         status = str(doc.get("status", "?"))
         url: str = str(doc.get("vercel_url") or "—")
-        if len(url) > 54:
-            url = url[:51] + "..."
+        if len(url) > 49:
+            url = url[:46] + "..."
         place_id = str(doc.get("place_id", ""))[:29]
-        print(f"{name:<25} {status:<20} {url:<55} {place_id:<30}")
+        print(f"{name:<25} {score:>5} {status:<18} {url:<50} {place_id:<30}")
 
     print(f"\nTotale: {len(filtered_docs)} business")
 
@@ -976,10 +998,13 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     # --- Pipeline subcommands ---
-    p_search = sub.add_parser("search", help="Cerca business su Google Maps", parents=[common])
+    p_search = sub.add_parser("search", help="Cerca business su Google Maps (new Places API v1)", parents=[common])
     p_search.add_argument("--location", required=True, help='Es: "Milano, Italy"')
-    p_search.add_argument("--query", required=True, help='Tipo: "ristorante"')
-    p_search.add_argument("--limit", type=int, default=10, help="Max (default: 10)")
+    p_search.add_argument("--query", required=True, help='Tipo: "restaurant", "hair_salon", "dentist"')
+    p_search.add_argument("--limit", type=int, default=10, help="Max risultati (default: 10)")
+    p_search.add_argument("--min-score", type=int, default=0, help="Soglia minima lead score 0-100 (default: 0)")
+    p_search.add_argument("--grid-size", type=int, default=3, choices=[2, 3], help="Griglia ricerca: 2=4 celle, 3=9 celle (default: 3)")
+    p_search.add_argument("--types", type=str, default=None, help='Raw Google type IDs comma-separated, bypasses expansion (es: "restaurant,pizza_restaurant")')
     p_search.set_defaults(func=cmd_search)
 
     p_gen = sub.add_parser("generate", help="Genera siti HTML con Claude", parents=[common])
