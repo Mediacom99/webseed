@@ -5,6 +5,7 @@ import re
 
 from webseed.claude_cli import run_claude_cli
 from webseed.maps import BusinessData
+from webseed.utils import atomic_write
 
 
 def _build_prompt(biz: BusinessData, prompt_template: str) -> str:
@@ -69,8 +70,7 @@ def generate(
     html = _strip_code_fences(raw_text)
 
     html_path = os.path.join(site_dir, "index.html")
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html)
+    atomic_write(html_path, html)
 
     vercel_json_path = os.path.join(site_dir, "vercel.json")
     with open(vercel_json_path, "w") as f:

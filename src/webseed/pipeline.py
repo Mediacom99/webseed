@@ -193,6 +193,9 @@ def cmd_generate(args: argparse.Namespace) -> None:
             )
             store.update_status(db, biz.place_id, "generated")
             print(f"  ✅ {site_dir}")
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
+            break
         except Exception as e:
             store.update_status(
                 db, biz.place_id, "error_generate", {"error_detail": str(e)}
@@ -331,6 +334,9 @@ def cmd_test(args: argparse.Namespace) -> None:
                 )
                 print(f"  ❌ Test falliti dopo {iteration} iterazioni")
 
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
+            break
         except Exception as e:
             store.update_status(
                 db, place_id, "error_test", {"error_detail": str(e)}
@@ -394,6 +400,9 @@ def cmd_deploy(args: argparse.Namespace) -> None:
                     {"site_screenshot_path": email_screenshot},
                 )
 
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
+            break
         except Exception as e:
             store.update_status(
                 db, place_id, "error_deploy", {"error_detail": str(e)}
@@ -464,6 +473,9 @@ def cmd_email(args: argparse.Namespace) -> None:
             store.update_status(db, biz.place_id, "email_queued")
             print(f"  ✅ Draft creato (ID: {draft_id})")
 
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
+            break
         except Exception as e:
             store.update_status(
                 db, biz.place_id, "error_email", {"error_detail": str(e)}
@@ -647,6 +659,9 @@ def cmd_run(args: argparse.Namespace) -> None:
                 store.update_status(db, place_id, "email_queued")
                 print(f"  ✅ Draft creato (ID: {draft_id})")
 
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
+            break
         except Exception as e:
             print(f"  ❌ Error: {e}")
             # Status already set by the failing step or leave as-is
@@ -1062,7 +1077,11 @@ def main() -> None:
         format="%(name)s %(levelname)s: %(message)s",
     )
 
-    args.func(args)
+    try:
+        args.func(args)
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Interrotto dall'utente.")
+        raise SystemExit(130)
 
 
 if __name__ == "__main__":

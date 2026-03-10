@@ -8,6 +8,7 @@ from typing import Any
 from playwright.sync_api import sync_playwright
 
 from webseed.claude_cli import extract_json_result, run_claude_cli
+from webseed.utils import atomic_write
 
 
 # ---------------------------------------------------------------------------
@@ -146,8 +147,7 @@ def fix_html(
     raw = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
     fixed_html = _strip_code_fences(raw)
 
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(fixed_html)
+    atomic_write(html_path, fixed_html)
 
 
 # ---------------------------------------------------------------------------
