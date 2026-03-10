@@ -31,3 +31,4 @@
 - [ ] Gestione dominio personalizzato — definire offerta per passaggio a dominio proprio del cliente (costo dominio, configurazione DNS, hosting). Oppure lasciare su Vercel come opzione base. Chiarire pricing e flow nel prompt email
 - [ ] Migliorare ranking risultati ricerca — ordinare business per "probabilità di conversione": più foto disponibili, rating alto, molte recensioni, categoria commerciale (ristoranti > associazioni). Prioritizzare business con più dati per generare siti migliori
 - [ ] Tracking limiti Vercel — monitorare e avvisare sui limiti del piano free (numero progetti, bandwidth, build minutes, ecc.) prima di ogni deploy per evitare addebiti inattesi. Considerare comando `webseed limits` o check automatico pre-deploy
+- [ ] Use Google Places API Place photos and Place Details to get as many info as possible
