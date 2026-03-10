@@ -934,6 +934,77 @@ def cmd_hard_delete(args: argparse.Namespace) -> None:
     print(f"\n✅ Hard delete completato.")
 
 
+def cmd_close(args: argparse.Namespace) -> None:
+    """Close a client: blacklist + remove Vercel deployment, keep local files."""
+    from webseed import deployer
+
+    db = store.open_db(args.db)
+    to_close = _resolve_many(db, args.place_ids)
+
+    if not to_close:
+        print("Nessun business da chiudere.")
+        return
+
+    # --- Summary ---
+    print(f"\n🔒 CLOSE — verranno chiusi {len(to_close)} business:\n")
+
+    for doc in to_close:
+        name = str(doc["name"])
+        place_id = str(doc["place_id"])
+        vercel_url = str(doc.get("vercel_url", ""))
+
+        print(f"  🔒 {name} ({place_id})")
+        if vercel_url:
+            print(f"     → Vercel deployment rimosso: {vercel_url}")
+        print(f"     → Status: opted_out (blacklisted)")
+        print(f"     → File locali: mantenuti")
+        print()
+
+    # --- Confirmation ---
+    if not args.yes:
+        try:
+            answer = input("Procedere? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\nAnnullato.")
+            return
+        if answer not in ("y", "yes", "si", "sì"):
+            print("Annullato.")
+            return
+
+    # --- Vercel check (lazy, only if needed) ---
+    vercel_bin: str | None = None
+    needs_vercel = any(doc.get("vercel_url") for doc in to_close)
+    if needs_vercel:
+        try:
+            vercel_bin = deployer.check_vercel_ready()
+        except RuntimeError as e:
+            print(f"⚠️  Vercel CLI non disponibile, skip rimozione deploy: {e}")
+
+    # --- Execute ---
+    for doc in to_close:
+        name = str(doc["name"])
+        place_id = str(doc["place_id"])
+
+        # 1. Remove Vercel deployment
+        vercel_url = str(doc.get("vercel_url", ""))
+        if vercel_url and vercel_bin:
+            if deployer.remove_deployment(vercel_bin, vercel_url):
+                print(f"  ✅ Vercel deployment rimosso: {vercel_url}")
+            else:
+                print(f"  ⚠️  Vercel deployment non trovato o già rimosso: {vercel_url}")
+
+        # 2. Blacklist (DB + file)
+        store.update_status(db, place_id, "opted_out", {
+            "vercel_url": "",
+            "site_screenshot_path": "",
+            "error_detail": "",
+        })
+        store.add_to_blacklist("blacklist.txt", [place_id])
+        print(f"  ✅ Blacklisted: {name}")
+
+    print(f"\n✅ Close completato.")
+
+
 def cmd_export_csv(args: argparse.Namespace) -> None:
     """Export the DB to a CSV file."""
     db = store.open_db(args.db)
@@ -1065,6 +1136,11 @@ def main() -> None:
     p_hard_del.add_argument("--blacklist", action="store_true", help="Mantieni entry in DB come blacklisted invece di cancellare")
     p_hard_del.add_argument("-y", "--yes", action="store_true", help="Salta conferma")
     p_hard_del.set_defaults(func=cmd_hard_delete)
+
+    p_close = sub.add_parser("close", help="Blacklista business e rimuovi deploy Vercel (mantiene file locali)", parents=[common])
+    p_close.add_argument("place_ids", nargs="+", help="Place ID o nome business")
+    p_close.add_argument("-y", "--yes", action="store_true", help="Salta conferma")
+    p_close.set_defaults(func=cmd_close)
 
     p_export = sub.add_parser("export-csv", help="Esporta DB in CSV", parents=[common])
     p_export.add_argument("--output", default="results.csv", help="File CSV output")

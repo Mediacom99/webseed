@@ -4,7 +4,7 @@
 
 - [ ] Fix Playwright visual test timeout — il comando `claude --print` va in timeout dopo 180s durante il visual test con Playwright MCP
 - [ ] Fix Unsplash fallback — `source.unsplash.com` is deprecated/dead. Either switch to Unsplash API, use a different stock photo source, or remove fallback entirely
-- [ ] Gestione CTRL-C (KeyboardInterrupt) — intercettare il segnale per fermarsi in modo pulito, salvare lo stato corrente del business nel DB (evitare stati transitori/inconsistenti), e uscire con messaggio chiaro
+- [x] Gestione CTRL-C (KeyboardInterrupt) — intercettare il segnale per fermarsi in modo pulito, salvare lo stato corrente del business nel DB (evitare stati transitori/inconsistenti), e uscire con messaggio chiaro
 
 ## Qualità pipeline
 
@@ -27,7 +27,7 @@
 - [ ] Email: personalizzare il tono come Edoardo Bertoli — freelance software engineer & digital nomad, non un bot. Includere link al sito personale, profilo LinkedIn, ecc. Far percepire che c'è una persona reale dietro, non un servizio automatizzato
 - [ ] Email: aggiungere clausola di scadenza — dopo X giorni senza risposta il sito viene rimosso automaticamente. Aggiungere opt-out facile ("rispondi a questa email per rimuovere il sito"). Verificare aspetto legale: chiarire che i dati usati sono pubblicamente accessibili da Google Maps
 - [ ] Sconto lancio primi 10 clienti — sito a €199 invece di €299, aggiornare prompt email con offerta limitata e urgency ("solo per i primi 10 clienti")
-- [ ] Comando `close` — blacklista un cliente, rimuove il deploy da Vercel (`vercel rm`), ma mantiene il sito in locale
+- [x] Comando `close` — blacklista un cliente, rimuove il deploy da Vercel (`vercel rm`), ma mantiene il sito in locale
 - [ ] Gestione dominio personalizzato — definire offerta per passaggio a dominio proprio del cliente (costo dominio, configurazione DNS, hosting). Oppure lasciare su Vercel come opzione base. Chiarire pricing e flow nel prompt email
 - [ ] Migliorare ranking risultati ricerca — ordinare business per "probabilità di conversione": più foto disponibili, rating alto, molte recensioni, categoria commerciale (ristoranti > associazioni). Prioritizzare business con più dati per generare siti migliori
 - [ ] Tracking limiti Vercel — monitorare e avvisare sui limiti del piano free (numero progetti, bandwidth, build minutes, ecc.) prima di ogni deploy per evitare addebiti inattesi. Considerare comando `webseed limits` o check automatico pre-deploy
