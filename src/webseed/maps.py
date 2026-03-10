@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 import requests
+from google.api_core import client_options as client_options_lib
+from google.api_core import exceptions as google_exceptions
+from google.maps.places_v1 import PlacesClient
+from google.maps.places_v1.types import places_service, geometry
+from google.maps.places_v1.types import place as place_types
+from google.type import latlng_pb2
 
 log = logging.getLogger(__name__)
 
 MAX_PHOTOS = 3
-_API_BASE = "https://places.googleapis.com/v1"
 _MAX_DETAIL_CALLS = 100  # cost safeguard
 
 CATEGORY_UNSPLASH: dict[str, str] = {
@@ -118,8 +122,10 @@ def safe_name(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Places API (v1) helpers
+# Places SDK client (lazy singleton)
 # ---------------------------------------------------------------------------
+
+_client: PlacesClient | None = None
 
 # Stage 1: cheap fields for discovery filtering
 _SEARCH_FIELD_MASK = ",".join([
@@ -160,68 +166,44 @@ _DETAIL_FIELD_MASK = ",".join([
 ])
 
 
-def _api_headers(api_key: str, field_mask: str) -> dict[str, str]:
-    return {
-        "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": field_mask,
-        "Content-Type": "application/json",
-    }
+def _get_client(api_key: str) -> PlacesClient:
+    global _client
+    if _client is None:
+        options = client_options_lib.ClientOptions(api_key=api_key)
+        _client = PlacesClient(client_options=options)
+    return _client
 
 
-def _request_with_retry(
-    method: str,
-    url: str,
-    headers: dict[str, str],
-    json_body: dict[str, Any] | None = None,
-    max_retries: int = 3,
-) -> dict[str, Any]:
-    """Make an API request with exponential backoff on 429/5xx."""
-    for attempt in range(max_retries):
-        try:
-            if method == "GET":
-                resp = requests.get(url, headers=headers, timeout=15)
-            else:
-                resp = requests.post(url, headers=headers, json=json_body, timeout=15)
-
-            if resp.status_code == 429 or resp.status_code >= 500:
-                wait = 2 ** attempt
-                log.warning("API %s (attempt %d/%d), retrying in %ds", resp.status_code, attempt + 1, max_retries, wait)
-                time.sleep(wait)
-                continue
-
-            resp.raise_for_status()
-            return resp.json()  # type: ignore[no-any-return]
-        except requests.RequestException as e:
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                continue
-            raise RuntimeError(f"API request failed after {max_retries} attempts: {e}") from e
-
-    raise RuntimeError(f"API request failed after {max_retries} attempts")
-
+# ---------------------------------------------------------------------------
+# Places SDK search helpers
+# ---------------------------------------------------------------------------
 
 def _search_text(
     api_key: str,
     query: str,
-    location_bias: dict[str, Any] | None = None,
+    location_bias: tuple[float, float, float] | None = None,
     page_size: int = 20,
-) -> list[dict[str, Any]]:
+) -> list[place_types.Place]:
     """Text Search (New). Returns up to page_size results."""
-    body: dict[str, Any] = {
-        "textQuery": query,
-        "languageCode": "it",
-        "pageSize": min(page_size, 20),
-    }
-    if location_bias:
-        body["locationBias"] = location_bias
-
-    data = _request_with_retry(
-        "POST",
-        f"{_API_BASE}/places:searchText",
-        _api_headers(api_key, _SEARCH_FIELD_MASK),
-        json_body=body,
+    client = _get_client(api_key)
+    request = places_service.SearchTextRequest(
+        text_query=query,
+        language_code="it",
+        max_result_count=min(page_size, 20),
     )
-    return data.get("places", [])
+    if location_bias:
+        lat, lng, radius = location_bias
+        request.location_bias = places_service.SearchTextRequest.LocationBias(
+            circle=geometry.Circle(
+                center=latlng_pb2.LatLng(latitude=lat, longitude=lng),
+                radius=radius,
+            )
+        )
+    response = client.search_text(  # type: ignore[reportUnknownMemberType]
+        request=request,
+        metadata=[("x-goog-fieldmask", _SEARCH_FIELD_MASK)],
+    )
+    return list(response.places)
 
 
 def _search_nearby(
@@ -231,36 +213,35 @@ def _search_nearby(
     radius: float,
     included_types: list[str] | None = None,
     page_size: int = 20,
-) -> list[dict[str, Any]]:
+) -> list[place_types.Place]:
     """Nearby Search (New). Returns up to page_size results."""
-    body: dict[str, Any] = {
-        "locationRestriction": {
-            "circle": {
-                "center": {"latitude": lat, "longitude": lng},
-                "radius": min(radius, 50000.0),
-            }
-        },
-        "languageCode": "it",
-        "maxResultCount": min(page_size, 20),
-    }
-    if included_types:
-        body["includedTypes"] = included_types
-
-    data = _request_with_retry(
-        "POST",
-        f"{_API_BASE}/places:searchNearby",
-        _api_headers(api_key, _SEARCH_FIELD_MASK),
-        json_body=body,
+    client = _get_client(api_key)
+    request = places_service.SearchNearbyRequest(
+        location_restriction=places_service.SearchNearbyRequest.LocationRestriction(
+            circle=geometry.Circle(
+                center=latlng_pb2.LatLng(latitude=lat, longitude=lng),
+                radius=min(radius, 50000.0),
+            )
+        ),
+        language_code="it",
+        max_result_count=min(page_size, 20),
     )
-    return data.get("places", [])
+    if included_types:
+        request.included_types = included_types
+
+    response = client.search_nearby(  # type: ignore[reportUnknownMemberType]
+        request=request,
+        metadata=[("x-goog-fieldmask", _SEARCH_FIELD_MASK)],
+    )
+    return list(response.places)
 
 
-def _get_place_details(api_key: str, place_id: str) -> dict[str, Any]:
+def _get_place_details(api_key: str, place_id: str) -> place_types.Place:
     """Place Details (New). Full enrichment for a single place."""
-    return _request_with_retry(
-        "GET",
-        f"{_API_BASE}/places/{place_id}",
-        _api_headers(api_key, _DETAIL_FIELD_MASK),
+    client = _get_client(api_key)
+    return client.get_place(  # type: ignore[reportUnknownMemberType]
+        request=places_service.GetPlaceRequest(name=f"places/{place_id}"),
+        metadata=[("x-goog-fieldmask", _DETAIL_FIELD_MASK)],
     )
 
 
@@ -308,29 +289,35 @@ def _generate_grid(
 
 
 # ---------------------------------------------------------------------------
-# Photo download (new API format)
+# Photo download (via SDK + requests for image bytes)
 # ---------------------------------------------------------------------------
 
 def _download_photos(
-    photos: list[dict[str, Any]], api_key: str, img_dir: str
+    photos: Any, api_key: str, img_dir: str
 ) -> list[str]:
-    """Download up to MAX_PHOTOS from new Places API. Returns relative paths."""
+    """Download up to MAX_PHOTOS from Places API via SDK. Returns relative paths."""
     os.makedirs(img_dir, exist_ok=True)
+    client = _get_client(api_key)
     paths: list[str] = []
 
-    for i, photo in enumerate(photos[:MAX_PHOTOS]):
-        photo_name = photo.get("name", "")
+    for i, photo in enumerate(list(photos)[:MAX_PHOTOS]):
+        photo_name = photo.name
         if not photo_name:
             continue
-        url = f"{_API_BASE}/{photo_name}/media?maxWidthPx=800&key={api_key}"
         try:
-            resp = requests.get(url, timeout=10)
+            photo_media = client.get_photo_media(  # type: ignore[reportUnknownMemberType]
+                request=places_service.GetPhotoMediaRequest(
+                    name=f"{photo_name}/media",
+                    max_width_px=800,
+                )
+            )
+            resp = requests.get(photo_media.photo_uri, timeout=10)
             if resp.status_code == 200:
                 path = os.path.join(img_dir, f"photo{i + 1}.jpg")
                 with open(path, "wb") as f:
                     f.write(resp.content)
                 paths.append(f"img/photo{i + 1}.jpg")
-        except requests.RequestException:
+        except (google_exceptions.GoogleAPIError, requests.RequestException):
             continue
 
     return paths
@@ -340,12 +327,12 @@ def _download_photos(
 # Lead scoring
 # ---------------------------------------------------------------------------
 
-def _compute_lead_score(details: dict[str, Any]) -> int:
+def _compute_lead_score(details: place_types.Place) -> int:
     """Compute 0-100 lead score from enriched place details."""
     score = 0.0
 
     # Rating: 4.5+ = 20, 4.0-4.5 = 10-20, 3.5-4.0 = 5
-    rating = float(details.get("rating", 0))
+    rating = details.rating
     if rating >= 4.5:
         score += 20
     elif rating >= 4.0:
@@ -354,7 +341,7 @@ def _compute_lead_score(details: dict[str, Any]) -> int:
         score += 5
 
     # Review count: log scale
-    reviews = int(details.get("userRatingCount", 0))
+    reviews = details.user_rating_count
     if reviews >= 200:
         score += 20
     elif reviews >= 100:
@@ -364,7 +351,7 @@ def _compute_lead_score(details: dict[str, Any]) -> int:
     elif reviews >= 10:
         score += 5
 
-    # Price level
+    # Price level (enum: 0 = unspecified, falsy)
     price_map = {
         "PRICE_LEVEL_FREE": 0,
         "PRICE_LEVEL_INEXPENSIVE": 3,
@@ -372,83 +359,87 @@ def _compute_lead_score(details: dict[str, Any]) -> int:
         "PRICE_LEVEL_EXPENSIVE": 12,
         "PRICE_LEVEL_VERY_EXPENSIVE": 15,
     }
-    price_level = details.get("priceLevel")
-    if price_level:
-        score += price_map.get(str(price_level), 0)
+    if details.price_level:
+        score += price_map.get(details.price_level.name, 0)
 
     # Opening hours
-    if details.get("regularOpeningHours"):
+    if details.regular_opening_hours:
         score += 10
 
-    # Business status
-    if details.get("businessStatus") == "OPERATIONAL":
+    # Business status (enum: 0 = unspecified)
+    if details.business_status and details.business_status.name == "OPERATIONAL":
         score += 10
 
     # Category tier
-    primary_type = str(details.get("primaryType", ""))
+    primary_type = details.primary_type or ""
     if primary_type in _HIGH_TIER_CATEGORIES:
         score += 10
     elif primary_type in _MID_TIER_CATEGORIES:
         score += 5
 
     # Review recency (any review within last 6 months)
-    reviews_list: list[dict[str, Any]] = details.get("reviews", [])
-    if reviews_list:
+    if details.reviews:
         cutoff = datetime.now(timezone.utc) - timedelta(days=180)
-        for review in reviews_list[:5]:
-            pub_time = str(review.get("publishTime", ""))
-            if pub_time:
+        for review in list(details.reviews)[:5]:
+            if review.publish_time:
                 try:
-                    review_dt = datetime.fromisoformat(pub_time.replace("Z", "+00:00"))
-                    if review_dt > cutoff:
+                    # proto-plus wraps Timestamp as DatetimeWithNanoseconds (datetime subclass)
+                    if review.publish_time > cutoff:  # type: ignore[operator]
                         score += 10
                         break
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
 
     # Has photos
-    if details.get("photos"):
+    if details.photos:
         score += 5
 
     return min(int(score), 100)
 
 
-def _extract_enrichment(details: dict[str, Any]) -> dict[str, Any]:
+def _extract_enrichment(details: place_types.Place) -> dict[str, Any]:
     """Extract enrichment fields from place details response."""
     # Opening hours summary
-    opening_hours = details.get("regularOpeningHours", {})
-    hours_descriptions: list[str] = opening_hours.get("weekdayDescriptions", [])
-    opening_summary = "; ".join(hours_descriptions) if hours_descriptions else None
+    hours = details.regular_opening_hours
+    opening_summary: str | None = None
+    if hours and hours.weekday_descriptions:
+        opening_summary = "; ".join(hours.weekday_descriptions)
 
     # Payment options
-    payment = details.get("paymentOptions", {})
     accepts_cc: bool | None = None
-    if payment:
-        accepts_cc = bool(payment.get("acceptsCreditCards", False))
+    if details.payment_options:
+        accepts_cc = bool(details.payment_options.accepts_credit_cards)
 
     # Editorial summary
-    editorial = details.get("editorialSummary", {})
-    editorial_text = str(editorial.get("text", "")) if editorial else None
+    editorial_text: str | None = None
+    if details.editorial_summary and details.editorial_summary.text:
+        editorial_text = details.editorial_summary.text
 
     # Review texts (up to 5, truncated to 200 chars)
     review_texts: list[str] = []
-    for review in details.get("reviews", [])[:5]:
-        text_obj = review.get("text", {})
-        text = str(text_obj.get("text", "")) if text_obj else ""
-        if text:
-            review_texts.append(text[:200])
+    for review in list(details.reviews)[:5]:
+        if review.text and review.text.text:
+            review_texts.append(review.text.text[:200])
 
     return {
-        "price_level": details.get("priceLevel"),
-        "business_status": str(details.get("businessStatus", "OPERATIONAL")),
-        "primary_type": details.get("primaryType"),
-        "types": details.get("types"),
-        "has_opening_hours": bool(opening_hours),
+        "price_level": details.price_level.name if details.price_level else None,
+        "business_status": details.business_status.name if details.business_status else "OPERATIONAL",
+        "primary_type": details.primary_type or None,
+        "types": list(details.types) if details.types else None,
+        "has_opening_hours": bool(hours),
         "opening_hours_summary": opening_summary,
         "accepts_credit_cards": accepts_cc,
         "editorial_summary": editorial_text,
         "review_texts": review_texts or None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Helper: extract display name from Place object
+# ---------------------------------------------------------------------------
+
+def _display_name(p: place_types.Place) -> str:
+    return p.display_name.text if p.display_name else "?"
 
 
 # ---------------------------------------------------------------------------
@@ -502,7 +493,7 @@ def search(
     # ── Stage 1: Discovery ──
     print(f"\n  Stage 1: Discovery (types: {search_types})")
     seen_ids: set[str] = set()
-    candidates: list[dict[str, Any]] = []
+    candidates: list[place_types.Place] = []
 
     # 1a. Grid-based Nearby Search
     if center_lat is not None and center_lng is not None:
@@ -514,24 +505,19 @@ def search(
                 places = _search_nearby(api_key, lat, lng, radius, included_types=search_types)
                 new = 0
                 for p in places:
-                    pid = str(p.get("id", ""))
+                    pid = p.id
                     if pid and pid not in seen_ids:
                         seen_ids.add(pid)
                         candidates.append(p)
                         new += 1
                 log.debug("Grid cell %d/%d: %d results, %d new", i + 1, len(grid), len(places), new)
-            except RuntimeError as e:
+            except google_exceptions.GoogleAPIError as e:
                 log.warning("Nearby search failed for grid cell %d: %s", i + 1, e)
 
     # 1b. Text Search for broader coverage
-    location_bias: dict[str, Any] | None = None
+    location_bias: tuple[float, float, float] | None = None
     if center_lat is not None and center_lng is not None:
-        location_bias = {
-            "circle": {
-                "center": {"latitude": center_lat, "longitude": center_lng},
-                "radius": 5000.0,
-            }
-        }
+        location_bias = (center_lat, center_lng, 5000.0)
 
     text_queries = [f"{query} {location}"]
     for t in search_types:
@@ -545,28 +531,26 @@ def search(
             places = _search_text(api_key, tq, location_bias=location_bias)
             new = 0
             for p in places:
-                pid = str(p.get("id", ""))
+                pid = p.id
                 if pid and pid not in seen_ids:
                     seen_ids.add(pid)
                     candidates.append(p)
                     new += 1
             log.debug("Text search '%s': %d results, %d new", tq, len(places), new)
-        except RuntimeError as e:
+        except google_exceptions.GoogleAPIError as e:
             log.warning("Text search failed for '%s': %s", tq, e)
 
     # ── Filter Stage 1 candidates ──
-    filtered: list[dict[str, Any]] = []
+    filtered: list[place_types.Place] = []
     for p in candidates:
         # Skip businesses with websites
-        if p.get("websiteUri"):
-            name = p.get("displayName", {}).get("text", "?")
-            log.debug("Skip (has website): %s", name)
+        if p.website_uri:
+            log.debug("Skip (has website): %s", _display_name(p))
             continue
         # Skip non-operational businesses
-        status = str(p.get("businessStatus", "OPERATIONAL"))
-        if status not in ("OPERATIONAL", ""):
-            name = p.get("displayName", {}).get("text", "?")
-            log.debug("Skip (status %s): %s", status, name)
+        status = p.business_status.name if p.business_status else ""
+        if status not in ("OPERATIONAL", "BUSINESS_STATUS_UNSPECIFIED", ""):
+            log.debug("Skip (status %s): %s", status, _display_name(p))
             continue
         filtered.append(p)
 
@@ -576,14 +560,14 @@ def search(
     if len(filtered) > _MAX_DETAIL_CALLS:
         print(f"  Cost safeguard: {len(filtered)} candidates > {_MAX_DETAIL_CALLS} cap, pre-ranking...")
         filtered.sort(
-            key=lambda p: float(p.get("rating", 0)) * int(p.get("userRatingCount", 0)),
+            key=lambda p: p.rating * p.user_rating_count,
             reverse=True,
         )
         filtered = filtered[:_MAX_DETAIL_CALLS]
 
     # ── Stage 2: Enrichment ──
     _skip = skip_place_ids or set()
-    eligible = [p for p in filtered if str(p.get("id", "")) not in _skip]
+    eligible = [p for p in filtered if p.id not in _skip]
     skipped_known = len(filtered) - len(eligible)
     if skipped_known:
         print(f"\n  Skipping {skipped_known} already-known businesses")
@@ -591,32 +575,32 @@ def search(
     businesses: list[BusinessData] = []
 
     for i, p in enumerate(eligible):
-        place_id = str(p.get("id", ""))
-        display_name = p.get("displayName", {}).get("text", "Unknown")
+        place_id = p.id
+        display_name = _display_name(p)
 
         try:
             details = _get_place_details(api_key, place_id)
-        except RuntimeError as e:
+        except google_exceptions.GoogleAPIError as e:
             log.warning("Detail fetch failed for %s: %s", display_name, e)
             continue
 
         # Double-check website (detail call may reveal one not in search results)
-        if details.get("websiteUri"):
+        if details.website_uri:
             log.debug("Skip (website found in details): %s", display_name)
             continue
 
         # Compute lead score
-        score = _compute_lead_score(details)
-        if score < min_score:
-            log.debug("Skip (score %d < %d): %s", score, min_score, display_name)
+        lead_score = _compute_lead_score(details)
+        if lead_score < min_score:
+            log.debug("Skip (score %d < %d): %s", lead_score, min_score, display_name)
             continue
 
         # Extract enrichment
         enrichment = _extract_enrichment(details)
 
         # Determine category
-        primary_type = str(details.get("primaryType", ""))
-        all_types: list[str] = details.get("types", [])
+        primary_type = details.primary_type or ""
+        all_types: list[str] = list(details.types) if details.types else []
         category = primary_type
         if not category:
             category = next(
@@ -625,31 +609,31 @@ def search(
             )
 
         # Download photos
-        name = str(details.get("displayName", {}).get("text", "Unknown"))
+        name = details.display_name.text if details.display_name else "Unknown"
         safe = safe_name(name)
         img_dir = os.path.join(output_dir, safe, "img")
-        photo_paths = _download_photos(details.get("photos", []), api_key, img_dir)
+        photo_paths = _download_photos(details.photos, api_key, img_dir)
 
         # Unsplash fallback
         unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
         fallback_url = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
 
         # Phone: prefer international, fall back to national
-        phone = details.get("internationalPhoneNumber") or details.get("nationalPhoneNumber")
+        phone = details.international_phone_number or details.national_phone_number or None
 
         biz = BusinessData(
             name=name,
             place_id=place_id,
-            address=str(details.get("formattedAddress", "")),
+            address=details.formatted_address or "",
             phone=phone,
-            rating=float(details.get("rating", 0.0)),
-            reviews=int(details.get("userRatingCount", 0)),
+            rating=details.rating,
+            reviews=details.user_rating_count,
             category=category,
-            maps_url=str(details.get("googleMapsUri", "")),
+            maps_url=details.google_maps_uri or "",
             has_photos=len(photo_paths) > 0,
             photo_paths=photo_paths,
             fallback_unsplash_url=fallback_url,
-            lead_score=score,
+            lead_score=lead_score,
             price_level=enrichment["price_level"],
             business_status=enrichment["business_status"],
             primary_type=enrichment["primary_type"],
@@ -661,7 +645,7 @@ def search(
             review_texts=enrichment["review_texts"],
         )
         businesses.append(biz)
-        print(f"  [{len(businesses)}] {biz.name} — score:{score} rating:{biz.rating} reviews:{biz.reviews}")
+        print(f"  [{len(businesses)}] {biz.name} — score:{lead_score} rating:{biz.rating} reviews:{biz.reviews}")
 
     # Sort by lead score descending, take top `limit`
     businesses.sort(key=lambda b: b.lead_score, reverse=True)
