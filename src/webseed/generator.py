@@ -4,9 +4,10 @@ import os
 import re
 
 from webseed.claude_cli import run_claude_cli
+from webseed.maps import BusinessData
 
 
-def _build_prompt(biz, prompt_template: str) -> str:
+def _build_prompt(biz: BusinessData, prompt_template: str) -> str:
     """Fill the prompt template with business data."""
     if biz.has_photos:
         images_block = "\n".join(f"- {p}" for p in biz.photo_paths)
@@ -48,7 +49,7 @@ def _strip_code_fences(html: str) -> str:
 
 
 def generate(
-    biz,
+    biz: BusinessData,
     output_dir: str,
     prompt_template: str,
     system_prompt: str,

@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """webseed — Genera e deploya siti per business locali senza website."""
 
+from __future__ import annotations
+
 import argparse
 import csv
 import glob
 import logging
 import os
 import shutil
-import sys
 from collections import Counter
 from datetime import datetime
+from typing import Any, TYPE_CHECKING
 
 log = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
+from tinydb import TinyDB
 
 from webseed import store
+
+if TYPE_CHECKING:
+    from webseed.maps import BusinessData
 
 GMAIL_LABEL_NAME = os.getenv("GMAIL_LABEL_NAME", "webseed-queue")
 
@@ -27,14 +33,14 @@ def _run_id(subcommand: str) -> str:
     return f"{subcommand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-def _doc_to_business_data(doc: dict):
+def _doc_to_business_data(doc: dict[str, Any]) -> BusinessData:
     """Reconstruct a BusinessData dataclass from a DB document."""
     from webseed.maps import BusinessData, safe_name
 
     # Use DB-stored photo_paths as primary source, fall back to filesystem scan
-    photo_paths = doc.get("photo_paths", [])
+    photo_paths: list[str] = doc.get("photo_paths", [])
     if not photo_paths:
-        safe = safe_name(doc["name"])
+        safe = safe_name(str(doc["name"]))
         img_dir = os.path.join("results", safe, "img")
         if os.path.isdir(img_dir):
             photo_paths = [
@@ -42,17 +48,17 @@ def _doc_to_business_data(doc: dict):
             ]
 
     return BusinessData(
-        name=doc["name"],
-        place_id=doc["place_id"],
-        address=doc["address"],
+        name=str(doc["name"]),
+        place_id=str(doc["place_id"]),
+        address=str(doc["address"]),
         phone=doc.get("phone") or None,
         rating=float(doc.get("rating", 0)),
         reviews=int(doc.get("reviews", 0)),
-        category=doc.get("category", ""),
-        maps_url=doc.get("maps_url", ""),
+        category=str(doc.get("category", "")),
+        maps_url=str(doc.get("maps_url", "")),
         has_photos=len(photo_paths) > 0,
         photo_paths=photo_paths,
-        fallback_unsplash_url=doc.get("fallback_unsplash_url", ""),
+        fallback_unsplash_url=str(doc.get("fallback_unsplash_url", "")),
     )
 
 
@@ -65,8 +71,8 @@ def _load_prompt(filename: str) -> str:
 
 def _require_env(*names: str) -> dict[str, str]:
     """Check that environment variables are set and return them as a dict."""
-    vals = {}
-    missing = []
+    vals: dict[str, str] = {}
+    missing: list[str] = []
     for name in names:
         val = os.getenv(name)
         if not val:
@@ -80,7 +86,7 @@ def _require_env(*names: str) -> dict[str, str]:
     return vals
 
 
-def _resolve_one(db, identifier: str):
+def _resolve_one(db: TinyDB, identifier: str) -> dict[str, Any] | None:
     """Resolve a single identifier (place_id or name) to one business doc.
     Returns the doc, or None if not found or ambiguous."""
     matches = store.resolve_identifier(db, identifier)
@@ -90,7 +96,7 @@ def _resolve_one(db, identifier: str):
     if len(matches) == 1:
         doc = matches[0]
         # Show resolved name when searching by name (not exact place_id match)
-        if identifier != doc["place_id"]:
+        if identifier != str(doc["place_id"]):
             print(f"  → {doc['name']} ({doc['place_id']})")
         return doc
     print(f"⚠️  '{identifier}' è ambiguo — {len(matches)} risultati:")
@@ -99,9 +105,9 @@ def _resolve_one(db, identifier: str):
     return None
 
 
-def _resolve_many(db, identifiers: list[str]) -> list[dict]:
+def _resolve_many(db: TinyDB, identifiers: list[str]) -> list[dict[str, Any]]:
     """Resolve a list of identifiers to business docs, skipping ambiguous/missing."""
-    results = []
+    results: list[dict[str, Any]] = []
     for identifier in identifiers:
         doc = _resolve_one(db, identifier)
         if doc:
@@ -113,7 +119,7 @@ def _resolve_many(db, identifiers: list[str]) -> list[dict]:
 # Pipeline subcommands
 # ---------------------------------------------------------------------------
 
-def cmd_search(args) -> None:
+def cmd_search(args: argparse.Namespace) -> None:
     """Search Maps for businesses without websites, save to DB."""
     env = _require_env("GOOGLE_MAPS_API_KEY")
     from webseed import maps
@@ -154,13 +160,13 @@ def cmd_search(args) -> None:
     print(f"\n📊 {inserted} nuovi, {updated} aggiornati, {skipped} blacklisted")
 
 
-def cmd_generate(args) -> None:
+def cmd_generate(args: argparse.Namespace) -> None:
     """Generate HTML sites for businesses at 'searched' status."""
     from webseed import generator
 
     db = store.open_db(args.db)
 
-    businesses = []
+    businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
         if doc.get("status") != "searched":
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'searched'. Usa reset prima.")
@@ -173,7 +179,6 @@ def cmd_generate(args) -> None:
 
     prompt_template = _load_prompt("site_gen.txt")
     system_prompt = _load_prompt("site_gen_system.txt")
-    run = _run_id("generate")
 
     print(f"\n🤖 Generazione siti per {len(businesses)} business\n")
 
@@ -197,14 +202,14 @@ def cmd_generate(args) -> None:
     print("\n✓ Generazione completata.")
 
 
-def cmd_test(args) -> None:
+def cmd_test(args: argparse.Namespace) -> None:
     """Test: code review + optional Playwright visual test, fix loop."""
     from webseed import tester
     from webseed.maps import safe_name
 
     db = store.open_db(args.db)
 
-    businesses = []
+    businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
         if doc.get("status") != "generated":
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'generated'. Usa reset prima.")
@@ -220,7 +225,7 @@ def cmd_test(args) -> None:
     # Load test/fix prompts
     code_review_prompt = _load_prompt("code_review.txt")
     fix_prompt = _load_prompt("fix_html.txt")
-    visual_test_prompt = None
+    visual_test_prompt: str | None = None
     if args.playwright:
         visual_test_prompt = _load_prompt("visual_test.txt")
 
@@ -232,9 +237,9 @@ def cmd_test(args) -> None:
     print()
 
     for i, doc in enumerate(businesses, 1):
-        biz_name = doc["name"]
-        place_id = doc["place_id"]
-        category = doc.get("category", "")
+        biz_name = str(doc["name"])
+        place_id = str(doc["place_id"])
+        category = str(doc.get("category", ""))
         safe = safe_name(biz_name)
         site_dir = os.path.join(args.results_dir, safe)
         local_html = os.path.join(os.path.abspath(site_dir), "index.html")
@@ -245,6 +250,7 @@ def cmd_test(args) -> None:
         try:
             test_passed = False
             iteration = 0
+            test_result: dict[str, Any] = {}
 
             for iteration in range(1, args.max_fix_iterations + 2):
                 # Code review (text-only, no browser)
@@ -256,7 +262,7 @@ def cmd_test(args) -> None:
                 )
 
                 if not test_result["ok"]:
-                    issues = test_result["issues"]
+                    issues: list[dict[str, Any]] = test_result["issues"]
                     summary = test_result["summary"] or test_result["error"]
                     print(f"  ⚠️ Code review: {summary}")
                     for issue in issues:
@@ -278,6 +284,7 @@ def cmd_test(args) -> None:
 
                 # Code review passed — optionally run Playwright visual test
                 if args.playwright:
+                    assert visual_test_prompt is not None
                     print(f"  🧪 Playwright visual test (iterazione {iteration})...")
                     test_result = tester.visual_test(
                         local_url, biz_name, category, safe,
@@ -335,7 +342,7 @@ def cmd_test(args) -> None:
     print("✓ Test completato.")
 
 
-def cmd_deploy(args) -> None:
+def cmd_deploy(args: argparse.Namespace) -> None:
     """Deploy to Vercel production + capture email screenshot."""
     from webseed import deployer
     from webseed import tester
@@ -345,7 +352,7 @@ def cmd_deploy(args) -> None:
 
     db = store.open_db(args.db)
 
-    businesses = []
+    businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
         if doc.get("status") != "tested":
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'tested'. Usa test prima.")
@@ -361,8 +368,8 @@ def cmd_deploy(args) -> None:
     print(f"\n🚀 Deploy per {len(businesses)} business\n")
 
     for i, doc in enumerate(businesses, 1):
-        biz_name = doc["name"]
-        place_id = doc["place_id"]
+        biz_name = str(doc["name"])
+        place_id = str(doc["place_id"])
         safe = safe_name(biz_name)
         site_dir = os.path.join(args.results_dir, safe)
         print(f"[{i}/{len(businesses)}] {biz_name}")
@@ -398,7 +405,7 @@ def cmd_deploy(args) -> None:
     print("✓ Deploy completato.")
 
 
-def cmd_email(args) -> None:
+def cmd_email(args: argparse.Namespace) -> None:
     """Generate personalized emails and create Gmail drafts."""
     env = _require_env("CONTACT_EMAIL")
     from webseed import emailer
@@ -413,7 +420,7 @@ def cmd_email(args) -> None:
 
     db = store.open_db(args.db)
 
-    businesses = []
+    businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
         if doc.get("status") != "deployed":
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'deployed'. Usa deploy prima.")
@@ -426,8 +433,8 @@ def cmd_email(args) -> None:
 
     contact_email = env["CONTACT_EMAIL"]
     prompt_template = _load_prompt("email_gen.txt")
-    gmail_service = emailer.authenticate()
-    label_id = emailer.ensure_label(gmail_service, GMAIL_LABEL_NAME)
+    gmail_service: Any = emailer.authenticate()
+    label_id: str = emailer.ensure_label(gmail_service, GMAIL_LABEL_NAME)
 
     print(f"\n📧 Creazione email per {len(businesses)} business\n")
 
@@ -438,7 +445,7 @@ def cmd_email(args) -> None:
         try:
             email_data = emailer.generate_email(
                 biz,
-                doc.get("vercel_url", ""),
+                str(doc.get("vercel_url", "")),
                 prompt_template,
                 contact_email=contact_email,
                 model=args.model,
@@ -447,10 +454,10 @@ def cmd_email(args) -> None:
             # to_email is empty — Maps doesn't provide emails; user fills in Gmail
             draft_id = emailer.create_draft(
                 gmail_service,
-                to_email=doc.get("email", ""),
+                to_email=str(doc.get("email", "")),
                 subject=email_data["subject"],
                 body_html=email_data["body_html"],
-                screenshot_path=doc.get("site_screenshot_path", ""),
+                screenshot_path=str(doc.get("site_screenshot_path", "")),
                 label_id=label_id,
             )
 
@@ -466,7 +473,7 @@ def cmd_email(args) -> None:
     print(f"\n✓ Email drafts creati. Controlla Gmail con label '{GMAIL_LABEL_NAME}'.")
 
 
-def cmd_run(args) -> None:
+def cmd_run(args: argparse.Namespace) -> None:
     """Run the full pipeline (generate → test → deploy → email) for specific businesses."""
     from webseed import deployer, emailer, generator, tester
     from webseed.maps import safe_name
@@ -482,9 +489,9 @@ def cmd_run(args) -> None:
     db = store.open_db(args.db)
 
     # Resolve businesses
-    businesses = []
+    businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
-        status = doc.get("status", "")
+        status = str(doc.get("status", ""))
         if status not in ("searched", "generated", "tested", "deployed",
                           "error_generate", "error_test", "error_deploy", "error_email"):
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{status}', non processabile.")
@@ -503,12 +510,12 @@ def cmd_run(args) -> None:
     screenshots_dir = os.path.join(args.results_dir, "screenshots")
 
     # Email setup (lazy — only init if we reach that step)
-    email_prompt = None
-    gmail_service = None
-    label_id = None
+    email_prompt: str | None = None
+    gmail_service: Any = None
+    label_id: str | None = None
     contact_email = os.getenv("CONTACT_EMAIL", "")
 
-    vercel_bin = None  # lazy init
+    vercel_bin: str | None = None  # lazy init
 
     print(f"\n🚀 Pipeline completa per {len(businesses)} business\n")
 
@@ -517,7 +524,7 @@ def cmd_run(args) -> None:
         place_id = biz.place_id
         safe = safe_name(biz.name)
         site_dir = os.path.join(args.results_dir, safe)
-        status = doc.get("status", "searched")
+        status = str(doc.get("status", "searched"))
 
         print(f"{'─' * 60}")
         print(f"[{i}/{len(businesses)}] {biz.name} (status: {status})")
@@ -539,7 +546,7 @@ def cmd_run(args) -> None:
             if status in ("generated", "error_test"):
                 print("\n  🧪 Code review...")
                 test_passed = False
-                test_result = {}
+                test_result: dict[str, Any] = {}
 
                 for iteration in range(1, args.max_fix_iterations + 2):
                     test_result = tester.code_review(
@@ -556,7 +563,7 @@ def cmd_run(args) -> None:
                         test_passed = True
                         break
 
-                    issues = test_result["issues"]
+                    issues: list[dict[str, Any]] = test_result["issues"]
                     summary = test_result["summary"] or test_result["error"]
                     print(f"  ⚠️  {summary}")
 
@@ -618,17 +625,23 @@ def cmd_run(args) -> None:
 
                 print("\n  📧 Generazione email...")
                 # Re-read doc to get latest screenshot path
-                doc = store.find_by_place_id(db, place_id)
+                fresh_doc = store.find_by_place_id(db, place_id)
+                if fresh_doc is None:
+                    print(f"  ⚠️  Business non trovato nel DB, skip email")
+                    continue
+
+                assert email_prompt is not None
+                assert label_id is not None
                 email_data = emailer.generate_email(
-                    biz, doc.get("vercel_url", ""), email_prompt,
+                    biz, str(fresh_doc.get("vercel_url", "")), email_prompt,
                     contact_email=contact_email, model=args.model,
                 )
                 draft_id = emailer.create_draft(
                     gmail_service,
-                    to_email=doc.get("email", ""),
+                    to_email=str(fresh_doc.get("email", "")),
                     subject=email_data["subject"],
                     body_html=email_data["body_html"],
-                    screenshot_path=doc.get("site_screenshot_path", ""),
+                    screenshot_path=str(fresh_doc.get("site_screenshot_path", "")),
                     label_id=label_id,
                 )
                 store.update_status(db, place_id, "email_queued")
@@ -647,7 +660,7 @@ def cmd_run(args) -> None:
 # Management subcommands
 # ---------------------------------------------------------------------------
 
-def cmd_status(args) -> None:
+def cmd_status(args: argparse.Namespace) -> None:
     """Show all businesses and their statuses."""
     db = store.open_db(args.db)
     docs = store.get_all_businesses(db)
@@ -656,28 +669,29 @@ def cmd_status(args) -> None:
         print("Database vuoto.")
         return
 
+    filtered_docs = list(docs)
     if args.filter:
-        docs = [d for d in docs if d.get("status", "").startswith(args.filter)]
-        if not docs:
+        filtered_docs = [d for d in docs if str(d.get("status", "")).startswith(args.filter)]
+        if not filtered_docs:
             print(f"Nessun business con status '{args.filter}*'.")
             return
 
     # Print table
     print(f"\n{'Nome':<25} {'Status':<20} {'URL':<55} {'Place ID':<30}")
     print("─" * 130)
-    for doc in docs:
-        name = doc.get("name", "")[:24]
-        status = doc.get("status", "?")
-        url = doc.get("vercel_url") or "—"
+    for doc in filtered_docs:
+        name = str(doc.get("name", ""))[:24]
+        status = str(doc.get("status", "?"))
+        url: str = str(doc.get("vercel_url") or "—")
         if len(url) > 54:
             url = url[:51] + "..."
-        place_id = doc.get("place_id", "")[:29]
+        place_id = str(doc.get("place_id", ""))[:29]
         print(f"{name:<25} {status:<20} {url:<55} {place_id:<30}")
 
-    print(f"\nTotale: {len(docs)} business")
+    print(f"\nTotale: {len(filtered_docs)} business")
 
 
-def cmd_show(args) -> None:
+def cmd_show(args: argparse.Namespace) -> None:
     """Show full details for a single business."""
     db = store.open_db(args.db)
     doc = _resolve_one(db, args.place_id)
@@ -691,7 +705,7 @@ def cmd_show(args) -> None:
         print(f"  {key}: {value}")
 
 
-def cmd_stats(args) -> None:
+def cmd_stats(args: argparse.Namespace) -> None:
     """Show summary statistics."""
     db = store.open_db(args.db)
     docs = store.get_all_businesses(db)
@@ -700,7 +714,7 @@ def cmd_stats(args) -> None:
         print("Database vuoto.")
         return
 
-    status_counts = Counter(d.get("status", "unknown") for d in docs)
+    status_counts: Counter[str] = Counter(str(d.get("status", "unknown")) for d in docs)
 
     print(f"\n📊 webseed stats ({args.db})\n")
     print(f"  Totale: {len(docs)} business\n")
@@ -710,17 +724,17 @@ def cmd_stats(args) -> None:
         print(f"  {status:<20} {count:>4}")
 
     # Last update
-    dates = [d.get("updated_at", "") for d in docs if d.get("updated_at")]
+    dates = [str(d.get("updated_at", "")) for d in docs if d.get("updated_at")]
     if dates:
         print(f"\n  Ultimo aggiornamento: {max(dates)[:19]}")
 
 
-def cmd_blacklist_add(args) -> None:
+def cmd_blacklist_add(args: argparse.Namespace) -> None:
     """Add place_ids to the blacklist."""
     db = store.open_db(args.db)
 
     docs = _resolve_many(db, args.place_ids)
-    resolved_ids = [d["place_id"] for d in docs]
+    resolved_ids = [str(d["place_id"]) for d in docs]
 
     if not resolved_ids:
         print("Nessun business da aggiungere alla blacklist.")
@@ -734,7 +748,7 @@ def cmd_blacklist_add(args) -> None:
     print(f"✅ {len(resolved_ids)} place_id aggiunti alla blacklist.")
 
 
-def cmd_blacklist_remove(args) -> None:
+def cmd_blacklist_remove(args: argparse.Namespace) -> None:
     """Remove a place_id from the blacklist."""
     db = store.open_db(args.db)
     doc = _resolve_one(db, args.place_id)
@@ -742,7 +756,7 @@ def cmd_blacklist_remove(args) -> None:
     if not doc:
         return
 
-    pid = doc["place_id"]
+    pid = str(doc["place_id"])
     removed_file = store.remove_from_blacklist("blacklist.txt", pid)
 
     removed_db = False
@@ -756,7 +770,7 @@ def cmd_blacklist_remove(args) -> None:
         print(f"Non trovato nella blacklist: {doc['name']} ({pid})")
 
 
-def cmd_blacklist_list(args) -> None:
+def cmd_blacklist_list(args: argparse.Namespace) -> None:
     """List all blacklisted place_ids."""
     db = store.open_db(args.db)
     full = store.get_full_blacklist(db)
@@ -770,7 +784,7 @@ def cmd_blacklist_list(args) -> None:
     print(f"\nTotale: {len(full)}")
 
 
-def cmd_reset(args) -> None:
+def cmd_reset(args: argparse.Namespace) -> None:
     """Reset a business's status."""
     db = store.open_db(args.db)
     doc = _resolve_one(db, args.place_id)
@@ -778,23 +792,23 @@ def cmd_reset(args) -> None:
     if not doc:
         return
 
-    old_status = doc.get("status", "?")
-    store.update_status(db, doc["place_id"], args.to, {"error_detail": ""})
+    old_status = str(doc.get("status", "?"))
+    store.update_status(db, str(doc["place_id"]), args.to, {"error_detail": ""})
     print(f"✅ {doc['name']}: {old_status} → {args.to}")
 
 
-def cmd_db_delete(args) -> None:
+def cmd_db_delete(args: argparse.Namespace) -> None:
     """Remove businesses from the DB only (keeps local files and Vercel deployments)."""
     db = store.open_db(args.db)
 
     if args.all:
         # Resolve --skip identifiers to place_ids
-        skip_ids = set()
+        skip_ids: set[str] = set()
         if args.skip:
             for doc in _resolve_many(db, args.skip):
-                skip_ids.add(doc["place_id"])
+                skip_ids.add(str(doc["place_id"]))
         docs = store.get_all_businesses(db)
-        to_delete = [d for d in docs if d["place_id"] not in skip_ids]
+        to_delete = [d for d in docs if str(d["place_id"]) not in skip_ids]
     else:
         to_delete = _resolve_many(db, args.place_ids or [])
 
@@ -803,13 +817,13 @@ def cmd_db_delete(args) -> None:
         return
 
     for doc in to_delete:
-        store.delete_business(db, doc["place_id"])
+        store.delete_business(db, str(doc["place_id"]))
         print(f"  🗑️  Rimosso dal DB: {doc['name']} ({doc['place_id']})")
 
     print(f"\n✅ Completato. I file locali in results/ non sono stati toccati.")
 
 
-def cmd_hard_delete(args) -> None:
+def cmd_hard_delete(args: argparse.Namespace) -> None:
     """Hard delete: remove DB entry, local files, and Vercel project."""
     from webseed import deployer
     from webseed.maps import safe_name
@@ -825,11 +839,11 @@ def cmd_hard_delete(args) -> None:
     print(f"\n⚠️  HARD DELETE — verranno eliminati {len(to_delete)} business:\n")
 
     for doc in to_delete:
-        name = doc["name"]
-        place_id = doc["place_id"]
+        name = str(doc["name"])
+        place_id = str(doc["place_id"])
         safe = safe_name(name)
         site_dir = os.path.join(args.results_dir, safe)
-        vercel_url = doc.get("vercel_url", "")
+        vercel_url = str(doc.get("vercel_url", ""))
         has_files = os.path.isdir(site_dir)
 
         print(f"  🗑️  {name} ({place_id})")
@@ -855,7 +869,7 @@ def cmd_hard_delete(args) -> None:
             return
 
     # --- Vercel check (lazy, only if needed) ---
-    vercel_bin = None
+    vercel_bin: str | None = None
     needs_vercel = any(doc.get("vercel_url") for doc in to_delete)
     if needs_vercel:
         try:
@@ -865,14 +879,14 @@ def cmd_hard_delete(args) -> None:
 
     # --- Execute ---
     for doc in to_delete:
-        name = doc["name"]
-        place_id = doc["place_id"]
+        name = str(doc["name"])
+        place_id = str(doc["place_id"])
         safe = safe_name(name)
         site_dir = os.path.join(args.results_dir, safe)
         screenshots_dir = os.path.join(args.results_dir, "screenshots")
 
         # 1. Remove Vercel deployment
-        vercel_url = doc.get("vercel_url", "")
+        vercel_url = str(doc.get("vercel_url", ""))
         if vercel_url and vercel_bin:
             if deployer.remove_deployment(vercel_bin, vercel_url):
                 print(f"  ✅ Vercel deployment rimosso: {vercel_url}")
@@ -905,7 +919,7 @@ def cmd_hard_delete(args) -> None:
     print(f"\n✅ Hard delete completato.")
 
 
-def cmd_export_csv(args) -> None:
+def cmd_export_csv(args: argparse.Namespace) -> None:
     """Export the DB to a CSV file."""
     db = store.open_db(args.db)
     docs = store.get_all_businesses(db)

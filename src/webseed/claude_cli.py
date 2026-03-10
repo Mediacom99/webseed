@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ def run_claude_cli(
 
     log.debug("Claude CLI returned %d bytes", len(result.stdout))
 
-    envelope = json.loads(result.stdout)
+    envelope: dict[str, str] = json.loads(result.stdout)
     return envelope["result"]
 
 
@@ -97,7 +98,7 @@ _JSON_RESULT_RE = re.compile(
 )
 
 
-def extract_json_result(text: str) -> dict:
+def extract_json_result(text: str) -> dict[str, Any]:
     """Extract the JSON block between ``---JSON_RESULT---`` markers.
 
     Returns the parsed dict or raises ``ValueError`` when markers/JSON are
@@ -109,4 +110,5 @@ def extract_json_result(text: str) -> dict:
             "No ---JSON_RESULT--- block found in Claude output. "
             f"Raw output (first 500 chars): {text[:500]}"
         )
-    return json.loads(match.group(1))
+    result: dict[str, Any] = json.loads(match.group(1))
+    return result

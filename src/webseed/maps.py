@@ -2,14 +2,16 @@
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
+
+from typing import cast as _cast
 
 import googlemaps
 import requests
 
 MAX_PHOTOS = 3
 
-CATEGORY_UNSPLASH = {
+CATEGORY_UNSPLASH: dict[str, str] = {
     "restaurant": "italian-restaurant",
     "food": "italian-food",
     "bar": "coffee-bar",
@@ -45,14 +47,14 @@ def safe_name(name: str) -> str:
 
 
 def _download_photos(
-    photos: list[dict], api_key: str, img_dir: str
+    photos: list[dict[str, Any]], api_key: str, img_dir: str
 ) -> list[str]:
     """Download up to MAX_PHOTOS from Places API. Returns relative paths for HTML."""
     os.makedirs(img_dir, exist_ok=True)
     paths: list[str] = []
 
     for i, photo in enumerate(photos[:MAX_PHOTOS]):
-        ref = photo["photo_reference"]
+        ref: str = photo["photo_reference"]
         url = (
             f"https://maps.googleapis.com/maps/api/place/photo"
             f"?maxwidth=800&photo_reference={ref}&key={api_key}"
@@ -70,25 +72,25 @@ def _download_photos(
     return paths
 
 
-def _fetch_all_pages(gmaps, query: str, location: str) -> list[dict]:
+def _fetch_all_pages(gmaps: googlemaps.Client, query: str, location: str) -> list[dict[str, Any]]:  # type: ignore[type-arg]
     """Fetch all pages of Places results for a single query string."""
     import time
-    results = gmaps.places(query=f"{query} {location}")
-    places = list(results.get("results", []))
+    results: dict[str, Any] = _cast(dict[str, Any], gmaps.places(query=f"{query} {location}"))  # type: ignore[no-untyped-call]
+    places: list[dict[str, Any]] = list(results.get("results", []))
 
     while "next_page_token" in results:
         time.sleep(2)  # Google requires a short delay before using next_page_token
-        results = gmaps.places(
+        results = _cast(dict[str, Any], gmaps.places(  # type: ignore[no-untyped-call]
             query=f"{query} {location}",
             page_token=results["next_page_token"],
-        )
+        ))
         places.extend(results.get("results", []))
 
     return places
 
 
 # Synonyms to broaden search when initial query doesn't find enough results
-QUERY_VARIANTS = {
+QUERY_VARIANTS: dict[str, list[str]] = {
     "ristorante": ["trattoria", "osteria", "pizzeria", "tavola calda"],
     "parrucchiere": ["barbiere", "salone bellezza", "hair salon"],
     "bar": ["caffè", "caffetteria", "pub"],
@@ -127,19 +129,20 @@ def search(
             if len(businesses) >= limit:
                 break
 
-            place_id = place["place_id"]
+            place_id: str = place["place_id"]
             if place_id in seen_place_ids:
                 continue
             seen_place_ids.add(place_id)
 
-            details = gmaps.place(
+            place_response: dict[str, Any] = _cast(dict[str, Any], gmaps.place(  # type: ignore[no-untyped-call]
                 place_id,
                 fields=[
                     "name", "formatted_address", "formatted_phone_number",
                     "rating", "user_ratings_total", "website", "photo",
                     "type", "url",
                 ],
-            ).get("result", {})
+            ))
+            details: dict[str, Any] = place_response.get("result", {})
 
             # Skip businesses that already have a website
             if details.get("website"):
@@ -147,14 +150,14 @@ def search(
                 continue
 
             # Determine primary category
-            types = details.get("types", ["establishment"])
+            types: list[str] = details.get("types", ["establishment"])
             category = next(
                 (t for t in types if t in CATEGORY_UNSPLASH),
                 types[0] if types else "establishment",
             )
 
             # Download photos
-            safe = safe_name(details.get("name", "unknown"))
+            safe = safe_name(str(details.get("name", "unknown")))
             img_dir = os.path.join(output_dir, safe, "img")
             photo_paths = _download_photos(
                 details.get("photos", []), api_key, img_dir
@@ -165,14 +168,14 @@ def search(
             fallback_url = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
 
             biz = BusinessData(
-                name=details.get("name", ""),
+                name=str(details.get("name", "")),
                 place_id=place_id,
-                address=details.get("formatted_address", ""),
+                address=str(details.get("formatted_address", "")),
                 phone=details.get("formatted_phone_number"),
-                rating=details.get("rating", 0.0),
-                reviews=details.get("user_ratings_total", 0),
+                rating=float(details.get("rating", 0.0)),
+                reviews=int(details.get("user_ratings_total", 0)),
                 category=category,
-                maps_url=details.get("url", ""),
+                maps_url=str(details.get("url", "")),
                 has_photos=len(photo_paths) > 0,
                 photo_paths=photo_paths,
                 fallback_unsplash_url=fallback_url,

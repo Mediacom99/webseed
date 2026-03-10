@@ -3,6 +3,7 @@
 import json
 import os
 import re
+from typing import Any
 
 from playwright.sync_api import sync_playwright
 
@@ -19,7 +20,7 @@ def code_review(
     category: str,
     prompt_template: str,
     model: str = "sonnet",
-) -> dict:
+) -> dict[str, Any]:
     """Run a code review on the local index.html via Claude Code CLI.
 
     Returns ``{"ok": bool, "issues": list, "summary": str, "error": str}``.
@@ -66,7 +67,7 @@ def visual_test(
     screenshots_dir: str,
     prompt_template: str,
     model: str = "sonnet",
-) -> dict:
+) -> dict[str, Any]:
     """Run a Claude Code CLI visual test on a deployed preview URL.
 
     Claude navigates the site via Playwright MCP, takes screenshots,
@@ -115,7 +116,7 @@ def _strip_code_fences(html: str) -> str:
 
 def fix_html(
     site_dir: str,
-    issues: list,
+    issues: list[dict[str, Any]],
     business_name: str,
     category: str,
     prompt_template: str,

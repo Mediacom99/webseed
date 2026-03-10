@@ -19,3 +19,11 @@ dependencies = [
 
 [project.scripts]
 webseed = "webseed.pipeline:main"
+
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.11"
+include = ["src"]
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = false

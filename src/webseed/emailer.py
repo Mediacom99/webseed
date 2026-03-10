@@ -1,16 +1,19 @@
 """Gmail API email module — generate personalized emails with Claude and create Gmail drafts."""
 
+from __future__ import annotations
+
 import base64
 import os
 import re
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import TYPE_CHECKING, Any
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import-untyped]
+from googleapiclient.discovery import build  # type: ignore[import-untyped]
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.compose",
@@ -20,50 +23,54 @@ SCOPES = [
 
 from webseed.claude_cli import run_claude_cli
 
+if TYPE_CHECKING:
+    from webseed.maps import BusinessData
+
 SENDER_NAME = os.getenv("SENDER_NAME", "Edoardo di WebSeed")
 
 _SUBJECT_RE = re.compile(r"---SUBJECT---\s*(.+?)\s*---SUBJECT---", re.DOTALL)
 _BODY_RE = re.compile(r"---BODY_HTML---\s*(.+?)\s*---BODY_HTML---", re.DOTALL)
 
 
-def authenticate():
+def authenticate() -> Any:
     """Authenticate with Gmail API via OAuth. Returns the Gmail service object."""
-    creds = None
+    creds: Credentials | None = None
     credentials_file = os.getenv("GMAIL_CREDENTIALS_FILE", "credentials.json")
     token_file = os.getenv("GMAIL_TOKEN_FILE", "token.json")
 
     if os.path.exists(token_file):
-        creds = Credentials.from_authorized_user_file(token_file, SCOPES)
+        creds = Credentials.from_authorized_user_file(token_file, SCOPES)  # type: ignore[reportUnknownMemberType]
 
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+        if creds and creds.expired and creds.refresh_token:  # type: ignore[reportUnknownMemberType]
+            creds.refresh(Request())  # type: ignore[reportUnknownMemberType]
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)
-            creds = flow.run_local_server(port=0)
+            flow: InstalledAppFlow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)  # type: ignore[no-untyped-call]
+            creds = flow.run_local_server(port=0)  # type: ignore[no-untyped-call]
+        assert creds is not None
         with open(token_file, "w") as f:
-            f.write(creds.to_json())
+            f.write(creds.to_json())  # type: ignore[reportUnknownMemberType]
 
-    return build("gmail", "v1", credentials=creds)
+    return build("gmail", "v1", credentials=creds)  # type: ignore[no-untyped-call]
 
 
-def ensure_label(service, label_name: str) -> str:
+def ensure_label(service: Any, label_name: str) -> str:
     """Get or create a Gmail label. Returns the label ID."""
-    results = service.users().labels().list(userId="me").execute()
-    labels = results.get("labels", [])
+    results: Any = service.users().labels().list(userId="me").execute()
+    labels: list[dict[str, Any]] = results.get("labels", [])
 
     for label in labels:
         if label["name"] == label_name:
-            return label["id"]
+            return str(label["id"])
 
     # Create label
-    label_body = {
+    label_body: dict[str, str] = {
         "name": label_name,
         "labelListVisibility": "labelShow",
         "messageListVisibility": "show",
     }
-    created = service.users().labels().create(userId="me", body=label_body).execute()
-    return created["id"]
+    created: Any = service.users().labels().create(userId="me", body=label_body).execute()
+    return str(created["id"])
 
 
 EMAIL_SYSTEM_PROMPT = (
@@ -74,9 +81,9 @@ EMAIL_SYSTEM_PROMPT = (
 
 
 def generate_email(
-    biz, site_url: str, prompt_template: str, contact_email: str = "",
+    biz: BusinessData, site_url: str, prompt_template: str, contact_email: str = "",
     model: str = "sonnet",
-) -> dict:
+) -> dict[str, str]:
     """Call Claude to generate a personalized email. Returns {'subject', 'body_html'}."""
     prompt = prompt_template.format(
         name=biz.name,
@@ -107,7 +114,7 @@ def generate_email(
 
 
 def create_draft(
-    service,
+    service: Any,
     to_email: str,
     subject: str,
     body_html: str,
@@ -143,19 +150,19 @@ def create_draft(
 
     # Encode and create draft
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    draft_body = {"message": {"raw": raw}}
+    draft_body: dict[str, dict[str, str]] = {"message": {"raw": raw}}
 
-    draft = (
+    draft: Any = (
         service.users().drafts().create(userId="me", body=draft_body).execute()
     )
 
     # Apply label to the draft message
     if label_id:
-        message_id = draft["message"]["id"]
+        message_id: str = draft["message"]["id"]
         service.users().messages().modify(
             userId="me",
             id=message_id,
             body={"addLabelIds": [label_id]},
         ).execute()
 
-    return draft["id"]
+    return str(draft["id"])
