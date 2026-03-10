@@ -276,7 +276,7 @@ def cmd_test(args: argparse.Namespace) -> None:
             iteration = 0
             test_result: dict[str, Any] = {}
 
-            for iteration in range(1, args.max_fix_iterations + 2):
+            for iteration in range(1, args.max_fix_iterations + 1):
                 # Code review (text-only, no browser)
                 print(f"  🔍 Code review (iterazione {iteration})...")
                 test_result = tester.code_review(
@@ -581,7 +581,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 test_passed = False
                 test_result: dict[str, Any] = {}
 
-                for iteration in range(1, args.max_fix_iterations + 2):
+                for iteration in range(1, args.max_fix_iterations + 1):
                     test_result = tester.code_review(
                         site_dir, biz.name, biz.category,
                         code_review_prompt, model=args.test_model,

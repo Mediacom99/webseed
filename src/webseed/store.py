@@ -69,6 +69,9 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
             "accepts_credit_cards": biz.accepts_credit_cards,
             "editorial_summary": biz.editorial_summary,
             "review_texts": biz.review_texts,
+            "has_photos": biz.has_photos,
+            "photo_paths": biz.photo_paths,
+            "fallback_unsplash_url": biz.fallback_unsplash_url,
             "updated_at": now,
         }
         db.update(cast(dict[str, object], update_fields), Biz.place_id == biz.place_id)  # type: ignore[arg-type]

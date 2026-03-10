@@ -16,5 +16,8 @@ def atomic_write(path: str, content: str) -> None:
             f.write(content)
         os.replace(tmp_path, path)
     except BaseException:
-        os.unlink(tmp_path)
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
         raise
