@@ -150,6 +150,9 @@ def cmd_search(args: argparse.Namespace) -> None:
         print(f"   Raw types: {raw_types}")
     print()
 
+    # Collect existing place_ids so we can exclude them from the limit count.
+    existing_ids = store.all_place_ids(db)
+
     print("🔍 Ricerca business su Maps (new Places API v1)...")
     businesses = maps.search(
         query=args.query,
@@ -160,25 +163,22 @@ def cmd_search(args: argparse.Namespace) -> None:
         min_score=args.min_score,
         grid_size=args.grid_size,
         raw_types=raw_types,
+        skip_place_ids=existing_ids | blacklist,
     )
     print(f"\n✓ Trovati {len(businesses)} business qualificati\n")
 
-    inserted = updated = skipped = 0
+    inserted = skipped = 0
     for biz in businesses:
         if biz.place_id in blacklist:
             print(f"  Skip (blacklisted): {biz.name}")
             skipped += 1
             continue
 
-        result = store.upsert_business(db, biz, run)
-        if result == "inserted":
-            print(f"  ✅ Nuovo: {biz.name} (score: {biz.lead_score})")
-            inserted += 1
-        else:
-            print(f"  🔄 Aggiornato: {biz.name} (score: {biz.lead_score})")
-            updated += 1
+        store.upsert_business(db, biz, run)
+        print(f"  ✅ Nuovo: {biz.name} (score: {biz.lead_score})")
+        inserted += 1
 
-    print(f"\n📊 {inserted} nuovi, {updated} aggiornati, {skipped} blacklisted")
+    print(f"\n📊 {inserted} nuovi, {skipped} blacklisted")
 
 
 def cmd_generate(args: argparse.Namespace) -> None:

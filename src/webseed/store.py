@@ -131,6 +131,11 @@ def delete_business(db: TinyDB, place_id: str) -> bool:
     return len(removed) > 0
 
 
+def all_place_ids(db: TinyDB) -> set[str]:
+    """Return the set of all place_ids currently in the DB."""
+    return {str(cast(dict[str, Any], d)["place_id"]) for d in db.all()}
+
+
 def get_businesses_at_status(db: TinyDB, status: str) -> list[dict[str, Any]]:
     """Return all businesses with the given status."""
     Biz = Query()

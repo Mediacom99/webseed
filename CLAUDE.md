@@ -183,10 +183,13 @@ Defined in `.env` (copy from `.env.example`):
 
 ## Search Behavior
 
-- Maps search paginates through all available results (up to 60 per Google's limit)
-- Synonym queries tried automatically (e.g. "ristorante" also searches "trattoria", "osteria", "pizzeria")
-- Synonym map defined in `QUERY_VARIANTS` dict in `maps.py`
-- Duplicate places deduplicated by `place_id` within run + across runs via DB
+- **Two-stage approach**: Stage 1 (cheap) discovers candidates via Nearby + Text Search on a grid; Stage 2 (rich) enriches qualifying candidates with Place Details
+- **Grid tiling**: `--grid-size 3` (default) divides the area into 9 cells with ~20% overlap for broader coverage
+- **Type expansion**: query (e.g. "ristorante") auto-expands to related Google type IDs via `QUERY_TYPE_MAP` in `maps.py`. Override with `--types`
+- **Lead scoring**: each business scored 0-100 on 8 signals (rating, review count, price level, opening hours, status, category tier, review recency, photos). Filter with `--min-score`
+- **`--limit` counts only new businesses**: businesses already in the DB or blacklist are skipped during enrichment and don't count toward the limit
+- Duplicate places deduplicated by `place_id` within run; known place_ids skipped in Stage 2
+- Cost safeguard: max 100 detail API calls per search run (`_MAX_DETAIL_CALLS`)
 
 ## Output
 

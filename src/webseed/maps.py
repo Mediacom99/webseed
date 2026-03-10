@@ -464,6 +464,7 @@ def search(
     min_score: int = 0,
     grid_size: int = 3,
     raw_types: list[str] | None = None,
+    skip_place_ids: set[str] | None = None,
 ) -> list[BusinessData]:
     """Search for businesses without a website using two-stage approach.
 
@@ -473,12 +474,14 @@ def search(
     Args:
         query: Business type query (e.g. "restaurant"). Used for type expansion and text search.
         location: City/area name (e.g. "Milano, Italy").
-        limit: Max businesses to return.
+        limit: Max *new* businesses to return.
         api_key: Google API key (works with both Places and Geocoding APIs).
         output_dir: Directory for downloaded photos.
         min_score: Minimum lead score (0-100) to include in results.
         grid_size: Grid dimension (2=4 cells, 3=9 cells).
         raw_types: If provided, use these Google type IDs directly instead of QUERY_TYPE_MAP.
+        skip_place_ids: Place IDs already known (DB + blacklist). These are skipped
+            during enrichment so ``limit`` counts only genuinely new businesses.
     """
     # ── Geocode ──
     center_lat: float | None = None
@@ -579,10 +582,15 @@ def search(
         filtered = filtered[:_MAX_DETAIL_CALLS]
 
     # ── Stage 2: Enrichment ──
-    print(f"\n  Stage 2: Enriching {len(filtered)} candidates...")
+    _skip = skip_place_ids or set()
+    eligible = [p for p in filtered if str(p.get("id", "")) not in _skip]
+    skipped_known = len(filtered) - len(eligible)
+    if skipped_known:
+        print(f"\n  Skipping {skipped_known} already-known businesses")
+    print(f"\n  Stage 2: Enriching {len(eligible)} new candidates (limit: {limit})...")
     businesses: list[BusinessData] = []
 
-    for i, p in enumerate(filtered):
+    for i, p in enumerate(eligible):
         place_id = str(p.get("id", ""))
         display_name = p.get("displayName", {}).get("text", "Unknown")
 
