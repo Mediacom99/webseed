@@ -1,5 +1,10 @@
 # TODO
 
+## 🔴 URGENT
+
+- [ ] **Control Google API costs** — add search cost tiers (cheap/standard/full) with predictable spend caps. Stage 1 field mask should use cheapest SKU possible. Let user choose tier via CLI flag (e.g. `--search-depth light|standard|deep`). Currently a full grid search with 100 detail calls costs ~$6-7
+- [ ] **Move photo downloads out of search step** — search should only collect business metadata, not media. `get_photo_media` calls ($0.007/call × 3 per place) should happen in the generate step when photos are actually used. Wasted money if a business is never generated
+
 ## Blockers / Bug fix
 
 - [ ] Fix Playwright visual test timeout — il comando `claude --print` va in timeout dopo 180s durante il visual test con Playwright MCP
