@@ -71,6 +71,7 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
             "review_texts": biz.review_texts,
             "has_photos": biz.has_photos,
             "photo_paths": biz.photo_paths,
+            "photo_refs": biz.photo_refs,
             "fallback_unsplash_url": biz.fallback_unsplash_url,
             "updated_at": now,
         }
@@ -89,6 +90,7 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
         "maps_url": biz.maps_url,
         "has_photos": biz.has_photos,
         "photo_paths": biz.photo_paths,
+        "photo_refs": biz.photo_refs,
         "fallback_unsplash_url": biz.fallback_unsplash_url,
         "lead_score": biz.lead_score,
         "price_level": biz.price_level,

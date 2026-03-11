@@ -56,8 +56,9 @@ def _doc_to_business_data(doc: dict[str, Any]) -> BusinessData:
         reviews=int(doc.get("reviews", 0)),
         category=str(doc.get("category", "")),
         maps_url=str(doc.get("maps_url", "")),
-        has_photos=len(photo_paths) > 0,
+        has_photos=len(photo_paths) > 0 or bool(doc.get("photo_refs")),
         photo_paths=photo_paths,
+        photo_refs=doc.get("photo_refs", []),
         fallback_unsplash_url=str(doc.get("fallback_unsplash_url", "")),
         lead_score=int(doc.get("lead_score", 0)),
         price_level=doc.get("price_level"),
@@ -131,23 +132,47 @@ def _resolve_many(db: TinyDB, identifiers: list[str]) -> list[dict[str, Any]]:
 
 def cmd_search(args: argparse.Namespace) -> None:
     """Search Maps for businesses without websites, save to DB."""
-    env = _require_env("GOOGLE_MAPS_API_KEY")
     from webseed import maps
+
+    # Handle --list-types early
+    if getattr(args, "list_types", False):
+        print("\nValid Google Place Type IDs for --types:\n")
+        for t in maps.SUPPORTED_PLACE_TYPES:
+            print(f"  {t}")
+        print(f"\nTotal: {len(maps.SUPPORTED_PLACE_TYPES)} types")
+        print("Reference: https://developers.google.com/maps/documentation/places/web-service/place-types")
+        return
+
+    # Validate required args for actual search
+    missing = []
+    if not args.location:
+        missing.append("--location")
+    if not args.query:
+        missing.append("--query")
+    if not args.types:
+        missing.append("--types")
+    if missing:
+        print(f"\n❌ Missing required arguments: {', '.join(missing)}")
+        return
+
+    env = _require_env("GOOGLE_MAPS_API_KEY")
 
     db = store.open_db(args.db)
     blacklist = store.get_full_blacklist(db)
     run = _run_id("search")
 
-    # Parse raw types if provided
-    raw_types: list[str] | None = None
-    if hasattr(args, "types") and args.types:
-        raw_types = [t.strip() for t in args.types.split(",") if t.strip()]
+    # Parse types
+    search_types = [t.strip() for t in args.types.split(",") if t.strip()]
+    invalid = [t for t in search_types if t not in maps.SUPPORTED_PLACE_TYPES]
+    if invalid:
+        print(f"\n❌ Invalid type(s): {', '.join(invalid)}")
+        print("   Use --list-types to see all valid types")
+        return
 
     print(f"\n🌱 webseed search")
     print(f"   Query: {args.query} in {args.location}")
+    print(f"   Types: {search_types}")
     print(f"   Limit: {args.limit} | Min score: {args.min_score} | Grid: {args.grid_size}x{args.grid_size}")
-    if raw_types:
-        print(f"   Raw types: {raw_types}")
     print()
 
     # Collect existing place_ids so we can exclude them from the limit count.
@@ -159,10 +184,9 @@ def cmd_search(args: argparse.Namespace) -> None:
         location=args.location,
         limit=args.limit,
         api_key=env["GOOGLE_MAPS_API_KEY"],
-        output_dir=args.results_dir,
+        types=search_types,
         min_score=args.min_score,
         grid_size=args.grid_size,
-        raw_types=raw_types,
         skip_place_ids=existing_ids | blacklist,
     )
     print(f"\n✓ Trovati {len(businesses)} business qualificati\n")
@@ -186,6 +210,7 @@ def cmd_generate(args: argparse.Namespace) -> None:
     from webseed import generator
 
     db = store.open_db(args.db)
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
 
     businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
@@ -211,8 +236,16 @@ def cmd_generate(args: argparse.Namespace) -> None:
             site_dir = generator.generate(
                 biz, args.results_dir, prompt_template, system_prompt,
                 model=args.model,
+                api_key=api_key,
             )
-            store.update_status(db, biz.place_id, "generated")
+            # Persist downloaded photo paths to DB
+            if biz.photo_paths:
+                store.update_status(db, biz.place_id, "generated", {
+                    "photo_paths": biz.photo_paths,
+                    "has_photos": biz.has_photos,
+                })
+            else:
+                store.update_status(db, biz.place_id, "generated")
             print(f"  ✅ {site_dir}")
         except KeyboardInterrupt:
             print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
@@ -570,8 +603,13 @@ def cmd_run(args: argparse.Namespace) -> None:
                 generator.generate(
                     biz, args.results_dir, prompt_template, system_prompt,
                     model=args.model,
+                    api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
                 )
-                store.update_status(db, place_id, "generated")
+                extra: dict[str, Any] = {}
+                if biz.photo_paths:
+                    extra["photo_paths"] = biz.photo_paths
+                    extra["has_photos"] = biz.has_photos
+                store.update_status(db, place_id, "generated", extra or None)
                 status = "generated"
                 print("  ✅ Sito generato")
 
@@ -999,12 +1037,16 @@ def main() -> None:
 
     # --- Pipeline subcommands ---
     p_search = sub.add_parser("search", help="Cerca business su Google Maps (new Places API v1)", parents=[common])
-    p_search.add_argument("--location", required=True, help='Es: "Milano, Italy"')
-    p_search.add_argument("--query", required=True, help='Tipo: "restaurant", "hair_salon", "dentist"')
+    p_search.add_argument("--location", default=None, help='Es: "Milano, Italy"')
+    p_search.add_argument("--query", default=None, help='Free-text query, any language (es: "ristorante", "parrucchiere")')
+    p_search.add_argument("--types", type=str, default=None,
+                          help='Google Place Type IDs, comma-separated (es: "restaurant,pizza_restaurant"). '
+                               'Use --list-types to see all valid types')
+    p_search.add_argument("--list-types", action="store_true", default=False,
+                          help="Print all valid Google Place Type IDs and exit")
     p_search.add_argument("--limit", type=int, default=10, help="Max risultati (default: 10)")
     p_search.add_argument("--min-score", type=int, default=0, help="Soglia minima lead score 0-100 (default: 0)")
     p_search.add_argument("--grid-size", type=int, default=3, choices=[2, 3], help="Griglia ricerca: 2=4 celle, 3=9 celle (default: 3)")
-    p_search.add_argument("--types", type=str, default=None, help='Raw Google type IDs comma-separated, bypasses expansion (es: "restaurant,pizza_restaurant")')
     p_search.set_defaults(func=cmd_search)
 
     p_gen = sub.add_parser("generate", help="Genera siti HTML con Claude", parents=[common])

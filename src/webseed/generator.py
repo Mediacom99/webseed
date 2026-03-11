@@ -55,13 +55,24 @@ def generate(
     prompt_template: str,
     system_prompt: str,
     model: str = "sonnet",
+    api_key: str | None = None,
 ) -> str:
-    """Generate index.html for the business. Returns the site directory path."""
-    from webseed.maps import safe_name
+    """Generate index.html for the business. Returns the site directory path.
+
+    If photos haven't been downloaded yet (photo_refs present but photo_paths empty),
+    downloads them now using the Google Places API key.
+    """
+    from webseed.maps import safe_name, download_photos
 
     safe = safe_name(biz.name)
     site_dir = os.path.join(output_dir, safe)
     os.makedirs(site_dir, exist_ok=True)
+
+    # Deferred photo download: fetch images now if we have refs but no local files
+    if biz.photo_refs and not biz.photo_paths and api_key:
+        img_dir = os.path.join(site_dir, "img")
+        biz.photo_paths = download_photos(biz.photo_refs, api_key, img_dir)
+        biz.has_photos = len(biz.photo_paths) > 0
 
     prompt = _build_prompt(biz, prompt_template)
 

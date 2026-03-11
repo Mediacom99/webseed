@@ -1,10 +1,10 @@
-"""Google Places API (v1) — search businesses without websites, score leads, download photos."""
+"""Google Places API (v1) — search businesses without websites, score leads, download photos on demand."""
 
 from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
@@ -57,23 +57,40 @@ DEFAULT_UNSPLASH = "local-business-italy"
 # Query-to-type expansion map (English Google type identifiers)
 # ---------------------------------------------------------------------------
 
-QUERY_TYPE_MAP: dict[str, list[str]] = {
-    "restaurant": ["restaurant", "italian_restaurant", "pizza_restaurant", "meal_takeaway"],
-    "bar": ["bar", "cafe", "coffee_shop"],
-    "hair_salon": ["hair_salon", "beauty_salon", "barber_shop"],
-    "dentist": ["dentist", "dental_clinic"],
-    "car_repair": ["car_repair", "car_wash"],
-    "hotel": ["hotel", "bed_and_breakfast", "lodging", "guest_house"],
-    "gym": ["gym", "fitness_center"],
-    "store": ["store", "clothing_store", "shoe_store", "jewelry_store"],
-    "pharmacy": ["pharmacy"],
-    "veterinary_care": ["veterinary_care"],
-    "florist": ["florist"],
-    "bakery": ["bakery"],
-    "pizza_restaurant": ["pizza_restaurant", "italian_restaurant"],
-    "ice_cream_shop": ["ice_cream_shop"],
-    "spa": ["spa", "beauty_salon"],
-}
+# Valid Google Place Type IDs for Nearby Search `included_types`.
+# Reference: https://developers.google.com/maps/documentation/places/web-service/place-types
+# This list contains types most relevant for local business lead generation.
+SUPPORTED_PLACE_TYPES: list[str] = [
+    # Food & Drink
+    "restaurant", "italian_restaurant", "pizza_restaurant", "meal_takeaway",
+    "meal_delivery", "cafe", "coffee_shop", "bakery", "bar", "ice_cream_shop",
+    "sandwich_shop", "seafood_restaurant", "steak_house", "sushi_restaurant",
+    "vegetarian_restaurant", "breakfast_restaurant", "brunch_restaurant",
+    "hamburger_restaurant", "indian_restaurant", "chinese_restaurant",
+    "japanese_restaurant", "mexican_restaurant", "thai_restaurant",
+    "mediterranean_restaurant", "middle_eastern_restaurant", "ramen_restaurant",
+    "fast_food_restaurant",
+    # Beauty & Wellness
+    "hair_salon", "beauty_salon", "barber_shop", "spa", "nail_salon",
+    # Health
+    "dentist", "dental_clinic", "doctor", "physiotherapist",
+    "veterinary_care",
+    # Automotive
+    "car_repair", "car_wash", "car_dealer",
+    # Accommodation
+    "hotel", "bed_and_breakfast", "lodging", "guest_house", "motel", "hostel",
+    # Fitness
+    "gym", "fitness_center",
+    # Retail
+    "store", "clothing_store", "shoe_store", "jewelry_store", "pet_store",
+    "furniture_store", "electronics_store", "book_store", "gift_shop",
+    "florist", "pharmacy", "hardware_store", "bicycle_store",
+    "sporting_goods_store", "convenience_store", "liquor_store",
+    # Services
+    "laundry", "locksmith", "plumber", "electrician", "roofing_contractor",
+    "moving_company", "painter", "real_estate_agency", "travel_agency",
+    "insurance_agency", "accounting", "lawyer",
+]
 
 # ---------------------------------------------------------------------------
 # Lead scoring constants
@@ -104,6 +121,7 @@ class BusinessData:
     has_photos: bool
     photo_paths: list[str]
     fallback_unsplash_url: str
+    photo_refs: list[str] = field(default_factory=list)  # Places API photo resource names for deferred download
     # New fields for lead scoring & enrichment (all defaulted for backward compat)
     lead_score: int = 0
     price_level: Optional[str] = None
@@ -292,18 +310,24 @@ def _generate_grid(
 # Photo download (via SDK + requests for image bytes)
 # ---------------------------------------------------------------------------
 
-def _download_photos(
-    photos: Any, api_key: str, img_dir: str
+def _extract_photo_refs(photos: Any) -> list[str]:
+    """Extract photo resource names from Places API response for deferred download."""
+    refs: list[str] = []
+    for photo in list(photos)[:MAX_PHOTOS]:
+        if photo.name:
+            refs.append(photo.name)
+    return refs
+
+
+def download_photos(
+    photo_refs: list[str], api_key: str, img_dir: str
 ) -> list[str]:
-    """Download up to MAX_PHOTOS from Places API via SDK. Returns relative paths."""
+    """Download photos by resource name. Returns relative paths (e.g. 'img/photo1.jpg')."""
     os.makedirs(img_dir, exist_ok=True)
     client = _get_client(api_key)
     paths: list[str] = []
 
-    for i, photo in enumerate(list(photos)[:MAX_PHOTOS]):
-        photo_name = photo.name
-        if not photo_name:
-            continue
+    for i, photo_name in enumerate(photo_refs):
         try:
             photo_media = client.get_photo_media(  # type: ignore[reportUnknownMemberType]
                 request=places_service.GetPhotoMediaRequest(
@@ -451,10 +475,9 @@ def search(
     location: str,
     limit: int,
     api_key: str,
-    output_dir: str,
+    types: list[str],
     min_score: int = 0,
     grid_size: int = 3,
-    raw_types: list[str] | None = None,
     skip_place_ids: set[str] | None = None,
 ) -> list[BusinessData]:
     """Search for businesses without a website using two-stage approach.
@@ -463,14 +486,13 @@ def search(
     Stage 2 (rich): Place Details for qualifying candidates → score + enrich
 
     Args:
-        query: Business type query (e.g. "restaurant"). Used for type expansion and text search.
+        query: Free-text query for Text Search (any language, e.g. "ristorante").
         location: City/area name (e.g. "Milano, Italy").
         limit: Max *new* businesses to return.
         api_key: Google API key (works with both Places and Geocoding APIs).
-        output_dir: Directory for downloaded photos.
+        types: Google Place Type IDs for Nearby Search (e.g. ["restaurant", "italian_restaurant"]).
         min_score: Minimum lead score (0-100) to include in results.
         grid_size: Grid dimension (2=4 cells, 3=9 cells).
-        raw_types: If provided, use these Google type IDs directly instead of QUERY_TYPE_MAP.
         skip_place_ids: Place IDs already known (DB + blacklist). These are skipped
             during enrichment so ``limit`` counts only genuinely new businesses.
     """
@@ -484,14 +506,8 @@ def search(
         log.warning("Geocoding failed for '%s': %s. Falling back to text search only.", location, e)
         print(f"  Geocoding failed for '{location}', using text search only")
 
-    # ── Resolve types ──
-    if raw_types:
-        search_types = raw_types
-    else:
-        search_types = QUERY_TYPE_MAP.get(query.lower(), [query])
-
     # ── Stage 1: Discovery ──
-    print(f"\n  Stage 1: Discovery (types: {search_types})")
+    print(f"\n  Stage 1: Discovery (types: {types})")
     seen_ids: set[str] = set()
     candidates: list[place_types.Place] = []
 
@@ -502,7 +518,7 @@ def search(
 
         for i, (lat, lng, radius) in enumerate(grid):
             try:
-                places = _search_nearby(api_key, lat, lng, radius, included_types=search_types)
+                places = _search_nearby(api_key, lat, lng, radius, included_types=types)
                 new = 0
                 for p in places:
                     pid = p.id
@@ -520,7 +536,7 @@ def search(
         location_bias = (center_lat, center_lng, 5000.0)
 
     text_queries = [f"{query} {location}"]
-    for t in search_types:
+    for t in types:
         tq = f"{t.replace('_', ' ')} {location}"
         if tq not in text_queries:
             text_queries.append(tq)
@@ -608,11 +624,9 @@ def search(
                 all_types[0] if all_types else "establishment",
             )
 
-        # Download photos
+        # Extract photo references (downloaded later during generation)
         name = details.display_name.text if details.display_name else "Unknown"
-        safe = safe_name(name)
-        img_dir = os.path.join(output_dir, safe, "img")
-        photo_paths = _download_photos(details.photos, api_key, img_dir)
+        photo_refs = _extract_photo_refs(details.photos) if details.photos else []
 
         # Unsplash fallback
         unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
@@ -630,8 +644,9 @@ def search(
             reviews=details.user_rating_count,
             category=category,
             maps_url=details.google_maps_uri or "",
-            has_photos=len(photo_paths) > 0,
-            photo_paths=photo_paths,
+            has_photos=len(photo_refs) > 0,
+            photo_paths=[],
+            photo_refs=photo_refs,
             fallback_unsplash_url=fallback_url,
             lead_score=lead_score,
             price_level=enrichment["price_level"],
