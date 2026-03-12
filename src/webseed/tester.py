@@ -7,7 +7,7 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
-from webseed.claude_cli import extract_json_result, run_claude_cli
+from webseed.claude_cli import extract_json_result, get_timeout, run_claude_cli
 from webseed.utils import atomic_write
 
 
@@ -42,7 +42,7 @@ def code_review(
     )
 
     try:
-        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
+        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 120))
         result = extract_json_result(raw)
         return {
             "ok": result.get("pass", False),
@@ -90,7 +90,7 @@ def visual_test(
     )
 
     try:
-        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=180, use_tools=True)
+        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 180), use_tools=True)
         result = extract_json_result(raw)
         return {
             "ok": result.get("pass", False),
@@ -144,7 +144,7 @@ def fix_html(
         "Rispondi ESCLUSIVAMENTE con il codice HTML corretto."
     )
 
-    raw = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
+    raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 120))
     fixed_html = _strip_code_fences(raw)
 
     atomic_write(html_path, fixed_html)

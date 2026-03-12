@@ -3,7 +3,7 @@
 import os
 import re
 
-from webseed.claude_cli import run_claude_cli
+from webseed.claude_cli import get_timeout, run_claude_cli
 from webseed.maps import BusinessData
 from webseed.utils import atomic_write
 
@@ -55,28 +55,20 @@ def generate(
     prompt_template: str,
     system_prompt: str,
     model: str = "sonnet",
-    api_key: str | None = None,
 ) -> str:
     """Generate index.html for the business. Returns the site directory path.
 
-    If photos haven't been downloaded yet (photo_refs present but photo_paths empty),
-    downloads them now using the Google Places API key.
+    Expects photos to be already downloaded by the ``enrich`` step.
     """
-    from webseed.maps import safe_name, download_photos
+    from webseed.maps import safe_name
 
     safe = safe_name(biz.name)
     site_dir = os.path.join(output_dir, safe)
     os.makedirs(site_dir, exist_ok=True)
 
-    # Deferred photo download: fetch images now if we have refs but no local files
-    if biz.photo_refs and not biz.photo_paths and api_key:
-        img_dir = os.path.join(site_dir, "img")
-        biz.photo_paths = download_photos(biz.photo_refs, api_key, img_dir)
-        biz.has_photos = len(biz.photo_paths) > 0
-
     prompt = _build_prompt(biz, prompt_template)
 
-    raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
+    raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_GENERATE", 120))
 
     html = _strip_code_fences(raw_text)
 

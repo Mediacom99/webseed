@@ -205,22 +205,86 @@ def cmd_search(args: argparse.Namespace) -> None:
     print(f"\n📊 {inserted} nuovi, {skipped} blacklisted")
 
 
-def cmd_generate(args: argparse.Namespace) -> None:
-    """Generate HTML sites for businesses at 'searched' status."""
-    from webseed import generator
+def cmd_enrich(args: argparse.Namespace) -> None:
+    """Enrich businesses with Place Details + photo download."""
+    from webseed import maps
 
+    env = _require_env("GOOGLE_MAPS_API_KEY")
     db = store.open_db(args.db)
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
 
     businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
-        if doc.get("status") != "searched":
-            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'searched'. Usa reset prima.")
+        status = doc.get("status", "")
+        if status not in ("searched", "error_enrich"):
+            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{status}', non 'searched'. Usa reset prima.")
         else:
             businesses.append(doc)
 
     if not businesses:
-        print("Nessun business da generare (status 'searched').")
+        print("Nessun business da arricchire (status 'searched').")
+        return
+
+    print(f"\n🔬 Enrichment per {len(businesses)} business")
+    if args.only_media:
+        print("   (solo media — skip Place Details)")
+    print()
+
+    for i, doc in enumerate(businesses, 1):
+        name = str(doc["name"])
+        place_id = str(doc["place_id"])
+        category = str(doc.get("category", "establishment"))
+        print(f"[{i}/{len(businesses)}] {name}")
+
+        try:
+            enriched = maps.enrich_business(
+                place_id=place_id,
+                name=name,
+                category=category,
+                api_key=env["GOOGLE_MAPS_API_KEY"],
+                results_dir=args.results_dir,
+                only_media=args.only_media,
+                existing_photo_refs=doc.get("photo_refs") or None,
+            )
+
+            if enriched.get("has_website"):
+                print(f"  ⚠️  Website trovato durante enrichment — skip")
+                store.update_status(db, place_id, "error_enrich", {
+                    "error_detail": "website found during enrichment",
+                })
+                continue
+
+            store.update_status(db, place_id, "enriched", enriched)
+            score = enriched.get("lead_score", doc.get("lead_score", "?"))
+            photos = len(enriched.get("photo_paths", []))
+            print(f"  ✅ score:{score} photos:{photos}")
+
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
+            break
+        except Exception as e:
+            store.update_status(
+                db, place_id, "error_enrich", {"error_detail": str(e)}
+            )
+            print(f"  ❌ Error: {e}")
+
+    print("\n✓ Enrichment completato.")
+
+
+def cmd_generate(args: argparse.Namespace) -> None:
+    """Generate HTML sites for businesses at 'enriched' status."""
+    from webseed import generator
+
+    db = store.open_db(args.db)
+
+    businesses: list[dict[str, Any]] = []
+    for doc in _resolve_many(db, args.place_ids):
+        if doc.get("status") != "enriched":
+            print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{doc.get('status')}', non 'enriched'. Usa enrich prima.")
+        else:
+            businesses.append(doc)
+
+    if not businesses:
+        print("Nessun business da generare (status 'enriched').")
         return
 
     prompt_template = _load_prompt("site_gen.txt")
@@ -236,16 +300,8 @@ def cmd_generate(args: argparse.Namespace) -> None:
             site_dir = generator.generate(
                 biz, args.results_dir, prompt_template, system_prompt,
                 model=args.model,
-                api_key=api_key,
             )
-            # Persist downloaded photo paths to DB
-            if biz.photo_paths:
-                store.update_status(db, biz.place_id, "generated", {
-                    "photo_paths": biz.photo_paths,
-                    "has_photos": biz.has_photos,
-                })
-            else:
-                store.update_status(db, biz.place_id, "generated")
+            store.update_status(db, biz.place_id, "generated")
             print(f"  ✅ {site_dir}")
         except KeyboardInterrupt:
             print("\n\n⚠️  Interrotto dall'utente. I business già completati sono stati salvati.")
@@ -540,8 +596,8 @@ def cmd_email(args: argparse.Namespace) -> None:
 
 
 def cmd_run(args: argparse.Namespace) -> None:
-    """Run the full pipeline (generate → test → deploy → email) for specific businesses."""
-    from webseed import deployer, emailer, generator, tester
+    """Run the full pipeline (enrich → generate → test → deploy → email) for specific businesses."""
+    from webseed import deployer, emailer, generator, maps, tester
     from webseed.maps import safe_name
 
     if args.hard:
@@ -558,8 +614,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     businesses: list[dict[str, Any]] = []
     for doc in _resolve_many(db, args.place_ids):
         status = str(doc.get("status", ""))
-        if status not in ("searched", "generated", "tested", "deployed",
-                          "error_generate", "error_test", "error_deploy", "error_email"):
+        if status not in ("searched", "enriched", "generated", "tested", "deployed",
+                          "error_enrich", "error_generate", "error_test", "error_deploy", "error_email"):
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{status}', non processabile.")
             continue
         businesses.append(doc)
@@ -597,19 +653,44 @@ def cmd_run(args: argparse.Namespace) -> None:
         print(f"{'─' * 60}")
 
         try:
+            # ── ENRICH ──
+            if status in ("searched", "error_enrich"):
+                api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
+                if not api_key:
+                    print("  ⚠️  GOOGLE_MAPS_API_KEY non impostata, skip enrich")
+                    continue
+
+                print("\n  🔬 Enrichment...")
+                enriched = maps.enrich_business(
+                    place_id=place_id,
+                    name=biz.name,
+                    category=biz.category,
+                    api_key=api_key,
+                    results_dir=args.results_dir,
+                )
+                if enriched.get("has_website"):
+                    print("  ⚠️  Website trovato durante enrichment — skip")
+                    store.update_status(db, place_id, "error_enrich", {
+                        "error_detail": "website found during enrichment",
+                    })
+                    continue
+
+                store.update_status(db, place_id, "enriched", enriched)
+                status = "enriched"
+                # Refresh biz with enriched data
+                fresh_doc = store.find_by_place_id(db, place_id)
+                if fresh_doc:
+                    biz = _doc_to_business_data(fresh_doc)
+                print(f"  ✅ Enriched (score:{enriched.get('lead_score', '?')} photos:{len(enriched.get('photo_paths', []))})")
+
             # ── GENERATE ──
-            if status in ("searched", "error_generate"):
+            if status in ("enriched", "error_generate"):
                 print("\n  🤖 Generazione sito...")
                 generator.generate(
                     biz, args.results_dir, prompt_template, system_prompt,
                     model=args.model,
-                    api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
                 )
-                extra: dict[str, Any] = {}
-                if biz.photo_paths:
-                    extra["photo_paths"] = biz.photo_paths
-                    extra["has_photos"] = biz.has_photos
-                store.update_status(db, place_id, "generated", extra or None)
+                store.update_status(db, place_id, "generated")
                 status = "generated"
                 print("  ✅ Sito generato")
 
@@ -1049,6 +1130,11 @@ def main() -> None:
     p_search.add_argument("--grid-size", type=int, default=3, choices=[2, 3], help="Griglia ricerca: 2=4 celle, 3=9 celle (default: 3)")
     p_search.set_defaults(func=cmd_search)
 
+    p_enrich = sub.add_parser("enrich", help="Arricchisci business con Place Details + foto", parents=[common])
+    p_enrich.add_argument("place_ids", nargs="+", help="Place ID o nome business")
+    p_enrich.add_argument("--only-media", action="store_true", help="Solo download foto, salta Place Details")
+    p_enrich.set_defaults(func=cmd_enrich)
+
     p_gen = sub.add_parser("generate", help="Genera siti HTML con Claude", parents=[common])
     p_gen.add_argument("--model", default="sonnet", help="Modello Claude (default: sonnet)")
     p_gen.add_argument("place_ids", nargs="+", help="Place ID o nome business")
@@ -1111,9 +1197,9 @@ def main() -> None:
     p_reset = sub.add_parser("reset", help="Reset status di un business", parents=[common])
     p_reset.add_argument("place_id", help="Place ID o nome business")
     VALID_STATUSES = [
-        "searched", "generated", "tested", "deployed",
+        "searched", "enriched", "generated", "tested", "deployed",
         "email_queued", "emailed", "opted_out",
-        "error_generate", "error_test", "error_deploy", "error_email",
+        "error_enrich", "error_generate", "error_test", "error_deploy", "error_email",
     ]
     p_reset.add_argument(
         "--to", required=True, choices=VALID_STATUSES,

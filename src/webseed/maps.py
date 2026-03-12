@@ -351,6 +351,47 @@ def download_photos(
 # Lead scoring
 # ---------------------------------------------------------------------------
 
+def _compute_pre_score(p: place_types.Place) -> int:
+    """Quick 0-60 score from Stage 1 fields for ranking before enrichment.
+
+    Uses only fields available in _SEARCH_FIELD_MASK (zero extra cost).
+    """
+    score = 0.0
+
+    # Rating (max 20)
+    rating = p.rating
+    if rating >= 4.5:
+        score += 20
+    elif rating >= 4.0:
+        score += 10 + (rating - 4.0) * 20
+    elif rating >= 3.5:
+        score += 5
+
+    # Review count (max 20)
+    reviews = p.user_rating_count
+    if reviews >= 200:
+        score += 20
+    elif reviews >= 100:
+        score += 15
+    elif reviews >= 50:
+        score += 10
+    elif reviews >= 10:
+        score += 5
+
+    # Business status (max 10)
+    if p.business_status and p.business_status.name == "OPERATIONAL":
+        score += 10
+
+    # Category tier (max 10)
+    primary_type = p.primary_type or ""
+    if primary_type in _HIGH_TIER_CATEGORIES:
+        score += 10
+    elif primary_type in _MID_TIER_CATEGORIES:
+        score += 5
+
+    return int(score)
+
+
 def _compute_lead_score(details: place_types.Place) -> int:
     """Compute 0-100 lead score from enriched place details."""
     score = 0.0
@@ -467,7 +508,83 @@ def _display_name(p: place_types.Place) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main search function (two-stage)
+# Business enrichment (Stage 2 — called per-business from `enrich` step)
+# ---------------------------------------------------------------------------
+
+def enrich_business(
+    place_id: str,
+    name: str,
+    category: str,
+    api_key: str,
+    results_dir: str,
+    only_media: bool = False,
+    existing_photo_refs: list[str] | None = None,
+) -> dict[str, Any]:
+    """Enrich a single business with Place Details + photo download.
+
+    Args:
+        place_id: Google place ID.
+        name: Business display name (for directory naming).
+        category: Primary category (for Unsplash fallback).
+        api_key: Google API key.
+        results_dir: Base results directory (e.g. "results/").
+        only_media: If True, skip Place Details and only download photos.
+        existing_photo_refs: Photo refs already stored in DB (used with only_media).
+
+    Returns:
+        Dict of enriched fields to merge into DB. Includes "has_website": True
+        if a website was discovered during enrichment (caller should handle).
+    """
+    result: dict[str, Any] = {}
+    photo_refs: list[str] = existing_photo_refs or []
+
+    # ── Place Details (unless only_media with existing refs) ──
+    if not only_media or not photo_refs:
+        details = _get_place_details(api_key, place_id)
+
+        # Website check
+        if details.website_uri:
+            return {"has_website": True}
+
+        if not only_media:
+            # Full enrichment
+            enrichment = _extract_enrichment(details)
+            lead_score = _compute_lead_score(details)
+
+            # Phone
+            phone = details.international_phone_number or details.national_phone_number or None
+
+            result.update({
+                "phone": phone or "",
+                "lead_score": lead_score,
+                **enrichment,
+            })
+
+        # Extract photo refs from details
+        photo_refs = _extract_photo_refs(details.photos) if details.photos else []
+        result["photo_refs"] = photo_refs
+
+    # ── Photo download ──
+    safe = safe_name(name)
+    img_dir = os.path.join(results_dir, safe, "img")
+
+    if photo_refs:
+        photo_paths = download_photos(photo_refs, api_key, img_dir)
+        result["photo_paths"] = photo_paths
+        result["has_photos"] = len(photo_paths) > 0
+    else:
+        result["photo_paths"] = []
+        result["has_photos"] = False
+
+    # Unsplash fallback
+    unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
+    result["fallback_unsplash_url"] = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Main search function (Stage 1 only — cheap discovery)
 # ---------------------------------------------------------------------------
 
 def search(
@@ -480,10 +597,12 @@ def search(
     grid_size: int = 3,
     skip_place_ids: set[str] | None = None,
 ) -> list[BusinessData]:
-    """Search for businesses without a website using two-stage approach.
+    """Discover businesses without a website (Stage 1 only — no Place Details calls).
 
-    Stage 1 (cheap): Nearby Search (grid) + Text Search → filter by no-website + operational
-    Stage 2 (rich): Place Details for qualifying candidates → score + enrich
+    Uses Nearby Search (grid) + Text Search to find candidates, filters by
+    no-website + operational, ranks by pre-score, and returns the top ``limit``.
+
+    Enrichment (Place Details, photos) happens in a separate ``enrich`` step.
 
     Args:
         query: Free-text query for Text Search (any language, e.g. "ristorante").
@@ -491,10 +610,10 @@ def search(
         limit: Max *new* businesses to return.
         api_key: Google API key (works with both Places and Geocoding APIs).
         types: Google Place Type IDs for Nearby Search (e.g. ["restaurant", "italian_restaurant"]).
-        min_score: Minimum lead score (0-100) to include in results.
+        min_score: Minimum pre-score (0-60) to include in results.
         grid_size: Grid dimension (2=4 cells, 3=9 cells).
-        skip_place_ids: Place IDs already known (DB + blacklist). These are skipped
-            during enrichment so ``limit`` counts only genuinely new businesses.
+        skip_place_ids: Place IDs already known (DB + blacklist). Skipped so
+            ``limit`` counts only genuinely new businesses.
     """
     # ── Geocode ──
     center_lat: float | None = None
@@ -572,98 +691,51 @@ def search(
 
     print(f"\n  Stage 1 complete: {len(candidates)} found, {len(filtered)} without website")
 
-    # ── Pre-rank for cost safeguard ──
-    if len(filtered) > _MAX_DETAIL_CALLS:
-        print(f"  Cost safeguard: {len(filtered)} candidates > {_MAX_DETAIL_CALLS} cap, pre-ranking...")
-        filtered.sort(
-            key=lambda p: p.rating * p.user_rating_count,
-            reverse=True,
-        )
-        filtered = filtered[:_MAX_DETAIL_CALLS]
-
-    # ── Stage 2: Enrichment ──
+    # ── Skip known place_ids ──
     _skip = skip_place_ids or set()
     eligible = [p for p in filtered if p.id not in _skip]
     skipped_known = len(filtered) - len(eligible)
     if skipped_known:
-        print(f"\n  Skipping {skipped_known} already-known businesses")
-    print(f"\n  Stage 2: Enriching {len(eligible)} new candidates (limit: {limit})...")
+        print(f"  Skipping {skipped_known} already-known businesses")
+
+    # ── Pre-score and rank ──
+    scored: list[tuple[int, place_types.Place]] = [
+        (_compute_pre_score(p), p) for p in eligible
+    ]
+    scored.sort(key=lambda t: t[0], reverse=True)
+
+    # Apply min_score filter and take top `limit`
     businesses: list[BusinessData] = []
-
-    for i, p in enumerate(eligible):
-        place_id = p.id
-        display_name = _display_name(p)
-
-        try:
-            details = _get_place_details(api_key, place_id)
-        except google_exceptions.GoogleAPIError as e:
-            log.warning("Detail fetch failed for %s: %s", display_name, e)
+    for pre_score, p in scored:
+        if pre_score < min_score:
+            log.debug("Skip (pre-score %d < %d): %s", pre_score, min_score, _display_name(p))
             continue
 
-        # Double-check website (detail call may reveal one not in search results)
-        if details.website_uri:
-            log.debug("Skip (website found in details): %s", display_name)
-            continue
-
-        # Compute lead score
-        lead_score = _compute_lead_score(details)
-        if lead_score < min_score:
-            log.debug("Skip (score %d < %d): %s", lead_score, min_score, display_name)
-            continue
-
-        # Extract enrichment
-        enrichment = _extract_enrichment(details)
-
-        # Determine category
-        primary_type = details.primary_type or ""
-        all_types: list[str] = list(details.types) if details.types else []
-        category = primary_type
-        if not category:
-            category = next(
-                (t for t in all_types if t in CATEGORY_UNSPLASH),
-                all_types[0] if all_types else "establishment",
-            )
-
-        # Extract photo references (downloaded later during generation)
-        name = details.display_name.text if details.display_name else "Unknown"
-        photo_refs = _extract_photo_refs(details.photos) if details.photos else []
-
-        # Unsplash fallback
+        primary_type = p.primary_type or ""
+        category = primary_type or "establishment"
         unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
-        fallback_url = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
-
-        # Phone: prefer international, fall back to national
-        phone = details.international_phone_number or details.national_phone_number or None
 
         biz = BusinessData(
-            name=name,
-            place_id=place_id,
-            address=details.formatted_address or "",
-            phone=phone,
-            rating=details.rating,
-            reviews=details.user_rating_count,
+            name=_display_name(p),
+            place_id=p.id,
+            address=p.formatted_address or "",
+            phone=None,
+            rating=p.rating,
+            reviews=p.user_rating_count,
             category=category,
-            maps_url=details.google_maps_uri or "",
-            has_photos=len(photo_refs) > 0,
+            maps_url=p.google_maps_uri or "",
+            has_photos=False,
             photo_paths=[],
-            photo_refs=photo_refs,
-            fallback_unsplash_url=fallback_url,
-            lead_score=lead_score,
-            price_level=enrichment["price_level"],
-            business_status=enrichment["business_status"],
-            primary_type=enrichment["primary_type"],
-            types=enrichment["types"],
-            has_opening_hours=enrichment["has_opening_hours"],
-            opening_hours_summary=enrichment["opening_hours_summary"],
-            accepts_credit_cards=enrichment["accepts_credit_cards"],
-            editorial_summary=enrichment["editorial_summary"],
-            review_texts=enrichment["review_texts"],
+            photo_refs=[],
+            fallback_unsplash_url=f"https://source.unsplash.com/1200x600/?{unsplash_query}",
+            lead_score=pre_score,
+            business_status=p.business_status.name if p.business_status else "OPERATIONAL",
+            primary_type=primary_type or None,
         )
         businesses.append(biz)
-        print(f"  [{len(businesses)}] {biz.name} — score:{lead_score} rating:{biz.rating} reviews:{biz.reviews}")
+        print(f"  [{len(businesses)}] {biz.name} — pre-score:{pre_score} rating:{biz.rating} reviews:{biz.reviews}")
 
-    # Sort by lead score descending, take top `limit`
-    businesses.sort(key=lambda b: b.lead_score, reverse=True)
-    businesses = businesses[:limit]
+        if len(businesses) >= limit:
+            break
 
     return businesses
