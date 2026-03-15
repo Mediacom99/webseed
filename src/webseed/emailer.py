@@ -22,6 +22,7 @@ SCOPES = [
 ]
 
 from webseed.claude_cli import get_timeout, run_claude_cli
+from webseed.utils import atomic_write
 
 if TYPE_CHECKING:
     from webseed.maps import BusinessData
@@ -48,8 +49,9 @@ def authenticate() -> Any:
             flow: InstalledAppFlow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)  # type: ignore[no-untyped-call]
             creds = flow.run_local_server(port=0)  # type: ignore[no-untyped-call]
         assert creds is not None
-        with open(token_file, "w") as f:
-            f.write(creds.to_json())  # type: ignore[reportUnknownMemberType]
+        token_json: str = creds.to_json()  # type: ignore[reportUnknownMemberType]
+        atomic_write(token_file, token_json)
+        os.chmod(token_file, 0o600)
 
     return build("gmail", "v1", credentials=creds)  # type: ignore[no-untyped-call]
 

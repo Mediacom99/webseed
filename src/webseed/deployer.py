@@ -80,13 +80,16 @@ def deploy(site_dir: str, vercel_bin: str) -> str:
 
     log.debug("Deploying: %s", site_dir)
 
-    result = subprocess.run(
-        [vercel_bin, "--yes"],
-        cwd=site_dir,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        result = subprocess.run(
+            [vercel_bin, "--yes"],
+            cwd=site_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"Vercel deploy timed out after 120s for {site_dir}")
 
     if result.returncode != 0:
         raise RuntimeError(f"Vercel deploy failed: {result.stderr}")
