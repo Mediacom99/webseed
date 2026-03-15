@@ -1,12 +1,17 @@
 """Visual testing via Claude Code CLI + Playwright MCP, and email screenshots."""
 
 import json
+import logging
 import os
 import re
+from typing import Any
+
+log = logging.getLogger(__name__)
 
 from playwright.sync_api import sync_playwright
 
-from webseed.claude_cli import extract_json_result, run_claude_cli
+from webseed.claude_cli import extract_json_result, get_timeout, run_claude_cli
+from webseed.utils import atomic_write
 
 
 # ---------------------------------------------------------------------------
@@ -19,7 +24,7 @@ def code_review(
     category: str,
     prompt_template: str,
     model: str = "sonnet",
-) -> dict:
+) -> dict[str, Any]:
     """Run a code review on the local index.html via Claude Code CLI.
 
     Returns ``{"ok": bool, "issues": list, "summary": str, "error": str}``.
@@ -40,7 +45,7 @@ def code_review(
     )
 
     try:
-        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
+        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 120))
         result = extract_json_result(raw)
         return {
             "ok": result.get("pass", False),
@@ -62,11 +67,10 @@ def visual_test(
     url: str,
     business_name: str,
     category: str,
-    safe_name: str,
     screenshots_dir: str,
     prompt_template: str,
     model: str = "sonnet",
-) -> dict:
+) -> dict[str, Any]:
     """Run a Claude Code CLI visual test on a deployed preview URL.
 
     Claude navigates the site via Playwright MCP, takes screenshots,
@@ -88,7 +92,7 @@ def visual_test(
     )
 
     try:
-        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=180, use_tools=True)
+        raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 180), use_tools=True)
         result = extract_json_result(raw)
         return {
             "ok": result.get("pass", False),
@@ -115,7 +119,7 @@ def _strip_code_fences(html: str) -> str:
 
 def fix_html(
     site_dir: str,
-    issues: list,
+    issues: list[dict[str, Any]],
     business_name: str,
     category: str,
     prompt_template: str,
@@ -142,11 +146,10 @@ def fix_html(
         "Rispondi ESCLUSIVAMENTE con il codice HTML corretto."
     )
 
-    raw = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
+    raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 120))
     fixed_html = _strip_code_fences(raw)
 
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(fixed_html)
+    atomic_write(html_path, fixed_html)
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +169,7 @@ def capture_email_screenshot(url: str, safe_name: str, screenshots_dir: str) -> 
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1280, "height": 600})
             try:
-                page.goto(url, timeout=30000, wait_until="networkidle")
+                page.goto(url, timeout=30000, wait_until="domcontentloaded")
                 page.screenshot(
                     path=screenshot_path,
                     clip={"x": 0, "y": 0, "width": 1280, "height": 600},
@@ -176,5 +179,5 @@ def capture_email_screenshot(url: str, safe_name: str, screenshots_dir: str) -> 
 
         return screenshot_path
     except Exception as e:
-        print(f"  ⚠️ Screenshot email fallito: {e}")
+        log.warning("Screenshot email fallito: %s", e)
         return ""

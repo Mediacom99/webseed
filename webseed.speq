@@ -1,0 +1,105 @@
+VERSION 0.2.0
+
+PROJECT
+  NAME   "webseed"
+  LANG   python
+  STACK  google-maps-api, anthropic-claude, vercel-cli, tinydb, gmail-api, playwright
+  ARCH   pipeline
+  DEPS
+    SYSTEM   chromium
+    RUNTIME  googlemaps, tinydb, playwright, google-auth
+    DEV      pytest
+
+VOCABULARY
+  BusinessData    # never: business, biz, company, local_biz
+  PlaceId         # never: place_id, google_id, maps_id, pid
+  SafeName        # never: name, slug, dir_name, folder_name
+  PipelineStatus  # never: status, state, step, stage
+  DeployUrl       # never: url, link, vercel_url, site_link
+  EmailDraft      # never: email, mail, message, draft
+
+ENTITY business, site, deployment, email_draft, blacklist_entry
+
+TRANSFORM
+  business -> site           : generate, test, fix
+  site     -> deployment     : deploy
+  deployment -> email_draft  : email
+
+SECRETS
+  GOOGLE_MAPS_API_KEY    -> DISCOVERY
+  GMAIL_CREDENTIALS_FILE -> EMAILER
+  CONTACT_EMAIL          -> EMAILER
+  SENDER_NAME            -> EMAILER
+
+CLASSIFY
+  GMAIL_CREDENTIALS_FILE  credential
+  GOOGLE_MAPS_API_KEY     sensitive
+
+LAYERS
+  DISCOVERY
+    OWNS   maps_search, photo_download, place_lookup
+    CALLS  STORE
+    NEVER  generate_html
+    NEVER  send_email
+    NEVER  deploy
+
+  GENERATOR
+    OWNS   html_generation, prompt_building, html_fix
+    CALLS  STORE
+    NEVER  search_maps
+    NEVER  deploy
+    NEVER  create_gmail_draft
+
+  TESTER
+    OWNS   code_review, visual_test, fix_loop
+    CALLS  GENERATOR, STORE
+    NEVER  deploy
+    NEVER  search_maps
+
+  DEPLOYER
+    OWNS   vercel_deploy, screenshot_capture
+    CALLS  STORE
+    NEVER  generate_html
+    NEVER  search_maps
+    NEVER  create_gmail_draft
+
+  EMAILER
+    OWNS   gmail_auth, draft_creation, email_generation
+    CALLS  STORE
+    NEVER  deploy
+    NEVER  generate_html
+    NEVER  search_maps
+
+  STORE
+    OWNS   tinydb_state, blacklist_management, status_transitions
+    NEVER  call_external_apis
+    NEVER  generate_html
+
+  CLI
+    BOUNDARY  external
+    CALLS     DISCOVERY, GENERATOR, TESTER, DEPLOYER, EMAILER, STORE
+    NEVER     implement_business_logic
+
+CONTRACTS
+  business.place_id     ALWAYS  present
+  business.safe_name    ALWAYS  matches-safe-name-function
+  site.format           ALWAYS  single-file-html-inline-css-js
+  deployment.url        ALWAYS  public-vercel-url
+  status.transitions    ALWAYS  searched, generated, tested, deployed, email_queued
+  blacklist.check       ALWAYS  before-any-pipeline-step
+  store.*               NEVER   called-from-external-api
+
+  FLOW generate_and_deploy
+    1. [DISCOVERY]  business.search
+    2. [STORE]      business.upsert
+    3. [GENERATOR]  site.generate
+    4. [TESTER]     site.review
+    5. [TESTER]     site.fix  # max 3 iterations
+    6. [DEPLOYER]   deployment.deploy
+    7. [EMAILER]    email_draft.create
+    ROLLBACK  store.reset_status
+    ATOMIC    false
+    TIMEOUT   300s
+
+CHANGELOG
+  0.1.0  initial spec — webseed pipeline

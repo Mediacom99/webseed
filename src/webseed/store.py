@@ -1,10 +1,20 @@
 """TinyDB data store — local JSON-based state management for the pipeline."""
 
+from __future__ import annotations
+
+import logging
 import os
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Any, cast
+
+log = logging.getLogger(__name__)
+
+from webseed.utils import atomic_write
 
 from tinydb import TinyDB, Query
+
+if TYPE_CHECKING:
+    from webseed.maps import BusinessData
 
 
 def open_db(db_path: str = "webseed.json") -> TinyDB:
@@ -12,21 +22,25 @@ def open_db(db_path: str = "webseed.json") -> TinyDB:
     return TinyDB(db_path, indent=2)
 
 
-def find_by_place_id(db: TinyDB, place_id: str) -> Optional[dict]:
+def find_by_place_id(db: TinyDB, place_id: str) -> dict[str, Any] | None:
     """Find a business by place_id. Returns the document or None."""
     Biz = Query()
     results = db.search(Biz.place_id == place_id)
-    return results[0] if results else None
+    if results:
+        return cast(dict[str, Any], results[0])
+    return None
 
 
-def find_by_name(db: TinyDB, query: str) -> list[dict]:
+def find_by_name(db: TinyDB, query: str) -> list[dict[str, Any]]:
     """Case-insensitive substring search on business name (like SQL ILIKE)."""
     Biz = Query()
     q_lower = query.lower()
-    return db.search(Biz.name.test(lambda name: q_lower in name.lower()))
+    return [cast(dict[str, Any], d) for d in db.search(
+        Biz.name.test(lambda name: q_lower in str(name).lower())  # type: ignore[arg-type]
+    )]
 
 
-def resolve_identifier(db: TinyDB, identifier: str) -> list[dict]:
+def resolve_identifier(db: TinyDB, identifier: str) -> list[dict[str, Any]]:
     """Resolve an identifier to businesses — tries exact place_id first, then name search."""
     doc = find_by_place_id(db, identifier)
     if doc:
@@ -34,7 +48,7 @@ def resolve_identifier(db: TinyDB, identifier: str) -> list[dict]:
     return find_by_name(db, identifier)
 
 
-def upsert_business(db: TinyDB, biz, run_id: str) -> str:
+def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
     """Insert or update a business. If place_id exists, update mutable fields only.
     Returns 'inserted' or 'updated'."""
     Biz = Query()
@@ -43,56 +57,85 @@ def upsert_business(db: TinyDB, biz, run_id: str) -> str:
 
     if existing:
         # Update mutable fields only — preserve status, URLs, email tracking
-        db.update(
-            {
-                "rating": biz.rating,
-                "reviews": biz.reviews,
-                "address": biz.address,
-                "phone": biz.phone or "",
-                "category": biz.category,
-                "maps_url": biz.maps_url,
-                "updated_at": now,
-            },
-            Biz.place_id == biz.place_id,
-        )
-        return "updated"
-
-    db.insert(
-        {
-            "place_id": biz.place_id,
-            "name": biz.name,
-            "address": biz.address,
-            "phone": biz.phone or "",
-            "email": "",
+        update_fields: dict[str, Any] = {
             "rating": biz.rating,
             "reviews": biz.reviews,
+            "address": biz.address,
+            "phone": biz.phone or "",
             "category": biz.category,
             "maps_url": biz.maps_url,
+            "lead_score": biz.lead_score,
+            "price_level": biz.price_level,
+            "business_status": biz.business_status,
+            "primary_type": biz.primary_type,
+            "types": biz.types,
+            "has_opening_hours": biz.has_opening_hours,
+            "opening_hours_summary": biz.opening_hours_summary,
+            "accepts_credit_cards": biz.accepts_credit_cards,
+            "editorial_summary": biz.editorial_summary,
+            "review_texts": biz.review_texts,
             "has_photos": biz.has_photos,
             "photo_paths": biz.photo_paths,
+            "photo_refs": biz.photo_refs,
             "fallback_unsplash_url": biz.fallback_unsplash_url,
-            "status": "searched",
-            "error_detail": "",
-            "vercel_url": "",
-            "site_screenshot_path": "",
-            "email_sent_at": "",
-            "run_id": run_id,
-            "created_at": now,
             "updated_at": now,
         }
-    )
+        db.update(cast(dict[str, object], update_fields), Biz.place_id == biz.place_id)  # type: ignore[arg-type]
+        return "updated"
+
+    insert_doc: dict[str, Any] = {
+        "place_id": biz.place_id,
+        "name": biz.name,
+        "address": biz.address,
+        "phone": biz.phone or "",
+        "email": "",
+        "rating": biz.rating,
+        "reviews": biz.reviews,
+        "category": biz.category,
+        "maps_url": biz.maps_url,
+        "has_photos": biz.has_photos,
+        "photo_paths": biz.photo_paths,
+        "photo_refs": biz.photo_refs,
+        "fallback_unsplash_url": biz.fallback_unsplash_url,
+        "lead_score": biz.lead_score,
+        "price_level": biz.price_level,
+        "business_status": biz.business_status,
+        "primary_type": biz.primary_type,
+        "types": biz.types,
+        "has_opening_hours": biz.has_opening_hours,
+        "opening_hours_summary": biz.opening_hours_summary,
+        "accepts_credit_cards": biz.accepts_credit_cards,
+        "editorial_summary": biz.editorial_summary,
+        "review_texts": biz.review_texts,
+        "status": "searched",
+        "error_detail": "",
+        "vercel_url": "",
+        "site_screenshot_path": "",
+        "email_sent_at": "",
+        "run_id": run_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+    db.insert(cast(dict[str, object], insert_doc))  # type: ignore[arg-type]
     return "inserted"
 
 
 def update_status(
-    db: TinyDB, place_id: str, status: str, extra: Optional[dict] = None
-) -> None:
-    """Update the status (and optional extra fields) for a business."""
+    db: TinyDB, place_id: str, status: str, extra: dict[str, Any] | None = None
+) -> bool:
+    """Update the status (and optional extra fields) for a business.
+
+    Returns True if the business was found and updated, False otherwise.
+    """
     Biz = Query()
-    updates = {"status": status, "updated_at": datetime.now().isoformat()}
+    updates: dict[str, Any] = {"status": status, "updated_at": datetime.now().isoformat()}
     if extra:
         updates.update(extra)
-    db.update(updates, Biz.place_id == place_id)
+    updated = db.update(cast(dict[str, object], updates), Biz.place_id == place_id)  # type: ignore[arg-type]
+    if not updated:
+        log.warning("update_status: no business found with place_id '%s'", place_id)
+        return False
+    return True
 
 
 def delete_business(db: TinyDB, place_id: str) -> bool:
@@ -102,21 +145,26 @@ def delete_business(db: TinyDB, place_id: str) -> bool:
     return len(removed) > 0
 
 
-def get_businesses_at_status(db: TinyDB, status: str) -> list[dict]:
+def all_place_ids(db: TinyDB) -> set[str]:
+    """Return the set of all place_ids currently in the DB."""
+    return {str(cast(dict[str, Any], d)["place_id"]) for d in db.all()}
+
+
+def get_businesses_at_status(db: TinyDB, status: str) -> list[dict[str, Any]]:
     """Return all businesses with the given status."""
     Biz = Query()
-    return db.search(Biz.status == status)
+    return [cast(dict[str, Any], d) for d in db.search(Biz.status == status)]
 
 
-def get_all_businesses(db: TinyDB) -> list[dict]:
+def get_all_businesses(db: TinyDB) -> list[dict[str, Any]]:
     """Return all businesses in the DB."""
-    return db.all()
+    return [cast(dict[str, Any], d) for d in db.all()]
 
 
 def get_blacklisted_place_ids(db: TinyDB) -> set[str]:
     """Return place_ids with status 'opted_out' from DB."""
     Biz = Query()
-    return {doc["place_id"] for doc in db.search(Biz.status == "opted_out")}
+    return {str(cast(dict[str, Any], doc)["place_id"]) for doc in db.search(Biz.status == "opted_out")}
 
 
 def load_blacklist(filepath: str = "blacklist.txt") -> set[str]:
@@ -150,6 +198,5 @@ def remove_from_blacklist(filepath: str, place_id: str) -> bool:
     new_lines = [l for l in lines if l.strip() != place_id]
     if len(new_lines) == len(lines):
         return False
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.writelines(new_lines)
+    atomic_write(filepath, "".join(new_lines))
     return True

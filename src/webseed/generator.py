@@ -3,29 +3,42 @@
 import os
 import re
 
-from webseed.claude_cli import run_claude_cli
+from webseed.claude_cli import get_timeout, run_claude_cli
+from webseed.maps import BusinessData
+from webseed.utils import atomic_write
 
 
-def _build_prompt(biz, prompt_template: str) -> str:
+def parse_kv(text: str) -> dict[str, str]:
+    """Parse a simple ``key: value`` text file into a dict (one pair per line)."""
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        if ": " in line:
+            key, value = line.split(": ", 1)
+            result[key.strip()] = value.strip()
+    return result
+
+
+def _build_prompt(
+    biz: BusinessData,
+    prompt_template: str,
+    photos_config: dict[str, str],
+    no_photos_config: dict[str, str],
+) -> str:
     """Fill the prompt template with business data."""
-    if biz.has_photos:
-        images_block = "\n".join(f"- {p}" for p in biz.photo_paths)
-        image_instructions = (
-            "Usa le foto di Google Maps (path relativi indicati sopra). "
-            "Hero background: prima foto. Galleria: mostra tutte le foto disponibili in una grid."
-        )
-        gallery_instruction = f"{len(biz.photo_paths)} foto Maps disponibili"
-    else:
-        images_block = (
-            f"Nessuna foto Maps disponibile. Fallback Unsplash: {biz.fallback_unsplash_url}"
-        )
-        image_instructions = (
-            f"Non ci sono foto Maps. Usa questo URL Unsplash come hero background: "
-            f"{biz.fallback_unsplash_url} "
-            f"Per la galleria, usa 3 varianti dello stesso URL Unsplash con dimensioni diverse "
-            f"(aggiungendo /?{biz.category}-2, /?{biz.category}-3)."
-        )
-        gallery_instruction = "usa URL Unsplash"
+    try:
+        if biz.has_photos:
+            images_block = "\n".join(f"- {p}" for p in biz.photo_paths)
+            image_instructions = photos_config["image_instructions"]
+            gallery_instruction = f"{len(biz.photo_paths)} {photos_config['gallery_suffix']}"
+        else:
+            images_block = no_photos_config["images_block"]
+            image_instructions = no_photos_config["image_instructions"]
+            gallery_instruction = no_photos_config["gallery_instruction"]
+    except KeyError as exc:
+        config_name = "site_gen_photos.txt" if biz.has_photos else "site_gen_no_photos.txt"
+        raise ValueError(
+            f"Missing key {exc} in {config_name} — check the prompt file has all required key=value pairs"
+        ) from exc
 
     return prompt_template.format(
         name=biz.name,
@@ -48,28 +61,32 @@ def _strip_code_fences(html: str) -> str:
 
 
 def generate(
-    biz,
+    biz: BusinessData,
     output_dir: str,
     prompt_template: str,
     system_prompt: str,
     model: str = "sonnet",
+    photos_config: dict[str, str] | None = None,
+    no_photos_config: dict[str, str] | None = None,
 ) -> str:
-    """Generate index.html for the business. Returns the site directory path."""
+    """Generate index.html for the business. Returns the site directory path.
+
+    Expects photos to be already downloaded by the ``enrich`` step.
+    """
     from webseed.maps import safe_name
 
     safe = safe_name(biz.name)
     site_dir = os.path.join(output_dir, safe)
     os.makedirs(site_dir, exist_ok=True)
 
-    prompt = _build_prompt(biz, prompt_template)
+    prompt = _build_prompt(biz, prompt_template, photos_config or {}, no_photos_config or {})
 
-    raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=120)
+    raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_GENERATE", 120))
 
     html = _strip_code_fences(raw_text)
 
     html_path = os.path.join(site_dir, "index.html")
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html)
+    atomic_write(html_path, html)
 
     vercel_json_path = os.path.join(site_dir, "vercel.json")
     with open(vercel_json_path, "w") as f:

@@ -6,8 +6,21 @@ import os
 import re
 import shutil
 import subprocess
+from typing import Any
 
 log = logging.getLogger(__name__)
+
+
+def get_timeout(env_var: str, default: int) -> int:
+    """Read a timeout value from an environment variable, falling back to *default*."""
+    raw = os.environ.get(env_var)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        log.warning("%s=%r is not a valid integer, using default %d", env_var, raw, default)
+        return default
 
 
 def _find_claude_binary() -> str:
@@ -78,6 +91,7 @@ def run_claude_cli(
         capture_output=True,
         text=True,
         timeout=timeout,
+        encoding="utf-8",
     )
 
     if result.returncode != 0:
@@ -87,8 +101,21 @@ def run_claude_cli(
 
     log.debug("Claude CLI returned %d bytes", len(result.stdout))
 
-    envelope = json.loads(result.stdout)
-    return envelope["result"]
+    try:
+        envelope: dict[str, Any] = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Failed to parse Claude CLI JSON output: {exc}. "
+            f"Raw stdout (first 500): {result.stdout[:500]}"
+        ) from exc
+    result_text = envelope.get("result")
+    if result_text is None:
+        raise RuntimeError(
+            f"Claude CLI response missing 'result' key. "
+            f"Keys found: {list(envelope.keys())}. "
+            f"Raw output (first 500): {result.stdout[:500]}"
+        )
+    return str(result_text)
 
 
 _JSON_RESULT_RE = re.compile(
@@ -97,7 +124,7 @@ _JSON_RESULT_RE = re.compile(
 )
 
 
-def extract_json_result(text: str) -> dict:
+def extract_json_result(text: str) -> dict[str, Any]:
     """Extract the JSON block between ``---JSON_RESULT---`` markers.
 
     Returns the parsed dict or raises ``ValueError`` when markers/JSON are
@@ -109,4 +136,5 @@ def extract_json_result(text: str) -> dict:
             "No ---JSON_RESULT--- block found in Claude output. "
             f"Raw output (first 500 chars): {text[:500]}"
         )
-    return json.loads(match.group(1))
+    result: dict[str, Any] = json.loads(match.group(1))
+    return result
