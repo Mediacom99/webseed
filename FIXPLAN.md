@@ -1,31 +1,6 @@
 # FIXPLAN — webseed Codebase Audit
 
-> Generated 2026-03-15 from full codebase audit. 45 issues across 5 severity tiers + REST API readiness blockers.
-
----
-
-## Batch 1 — Critical (Security & Data Loss)
-
-- [x] **#1** `emailer.py:51` — OAuth token file world-readable. Add `os.chmod(token_file, 0o600)` after write.
-- [x] **#2** `emailer.py:51-52` — Non-atomic token write. Replace `open()` with `atomic_write()` + binary mode support.
-- [x] **#3** `deployer.py:83-89` — Zombie deployments on timeout. Catch `subprocess.TimeoutExpired`, call `.kill()` on child, record `error_deploy` status.
-- [x] **#4** `tester.py:33-37, 135-140` — `str.format(html=html)` crashes on CSS braces. Verify template double-escapes `{{`/`}}` or switch to `str.replace("{html}", html)`.
-- [x] **#5** `store.py:180-191` — Non-atomic blacklist rewrite. Use `atomic_write()` in `remove_from_blacklist()`.
-- [x] **#6** `__main__.py:1-3` — `main()` runs on import. Add `if __name__ == "__main__":` guard.
-
----
-
-## Batch 2 — High Priority (Error Handling & Brittleness)
-
-- [x] **#7** `pipeline.py:26`, `emailer.py:29` — Env vars read before `load_dotenv()`. Move `GMAIL_LABEL_NAME` and `SENDER_NAME` reads inside their respective functions.
-- [x] **#8** `pipeline.py:44` — `_doc_to_business_data()` hardcodes `"results"` instead of using `results_dir` param. Thread `results_dir` through or make it a function parameter.
-- [x] **#9** `pipeline.py:805-807` — Outer `except` in `cmd_run` doesn't update status. Add `store.update_status(db, place_id, "error_run", str(e))`.
-- [x] **#10** `maps.py:581, 730` — Unsplash `source.unsplash.com` is dead (410 Gone since 2024). Remove fallback or replace with working alternative.
-- [x] **#11** `generator.py:32-42`, `emailer.py:88` — Template injection via `str.format()`. Business names/addresses containing `{` crash with `KeyError`. Switch to `string.Template` or pre-escape braces in data.
-- [x] **#12** `emailer.py:49` — Browser OAuth crashes in headless. Add interactive environment check with clear error message for non-interactive contexts.
-- [x] **#13** `emailer.py:127` — Malformed `From` header (display name only, no email). Use `"Name <email>"` format.
-- [x] **#14** `claude_cli.py:88-94` — No explicit `encoding="utf-8"` on `subprocess.run(text=True)`. Add `encoding="utf-8"`.
-- [x] **#15** `claude_cli.py:103-104` — Bare `json.loads()` with no error context. Wrap in try/except, include `result.stdout[:500]` in error message.
+> Generated 2026-03-15 from full codebase audit. Batches 1 & 2 completed (15 fixes). Remaining: REST API refactor + 17 verified bugs.
 
 ---
 
@@ -63,43 +38,39 @@
 
 ---
 
-## Batch 4 — Medium (Code Quality & Inconsistencies)
+## Batch 6 — Verified Bugs from Batches 4 & 5
 
-- [ ] **#16** `pipeline.py:368-396, 703-729` — Off-by-one in fix loop. Change `iteration <= max_fix_iterations` to `iteration < max_fix_iterations`.
-- [ ] **#17** `pipeline.py:1159` — CSV export uses first-doc fields only. Union all keys across documents.
-- [ ] **#18** `pipeline.py:899+` — Hardcoded `blacklist.txt` path ignores `--db` location (see also #3C.3).
-- [ ] **#19** `store.py:53-79` — `upsert_business` doesn't clear `error_detail` on successful update. Add `"error_detail": ""` to update dict.
-- [ ] **#20** `store.py:118-126` — `update_status` is silent no-op for unknown `place_id`. Return bool or raise.
-- [ ] **#21** `maps.py:146-192` — Global `_client` singleton not thread-safe (see also #3B.1).
-- [ ] **#22** `maps.py:338-343` — Photo download: no content-type check, full response buffered in memory. Add content-type validation, use `iter_content()`.
-- [ ] **#23** `maps.py:568-569` — `safe_name()` allows `..` path traversal. Strip leading dots, validate result stays within base dir.
-- [ ] **#24** `maps.py:541-565` — `only_media` with no existing photo refs → partial enrichment saved as "enriched". Guard against incomplete state.
-- [ ] **#25** `deployer.py:77-79` — Non-atomic `vercel.json` write. Use `atomic_write()`.
-- [ ] **#26** `generator.py:45-49` — Fragile fence stripping. Extract content of first code block instead of stripping edges.
-- [ ] **#27** `emailer.py:118-129` — No email address validation on `to_email`. Validate format before creating draft.
-- [ ] **#28** `emailer.py:160-166` — Label application non-atomic. Log warning if label step fails; consider retry.
-- [ ] **#29** `tester.py:170` — `networkidle` causes 30s hangs. Switch to `domcontentloaded` + explicit short wait.
-- [ ] **#30** `claude_cli.py:103` — Wrong type annotation `dict[str, str]`. Change to `dict[str, Any]`.
-- [ ] **#31** `claude_cli.py:83` — `--tools ""` fragile against CLI version changes. Test or use `--no-tools` if available.
-- [ ] **#32** `maps.py` (all API calls) — No retry logic on transient errors (429, 503, `DeadlineExceeded`). Add `google-api-core` retry parameters.
+> 17 real bugs triaged from Batches 4 (16 candidates → 9 real) and 5 (13 candidates → 8 real). False positives: #16, #26, #30, #31, #35, #36, #38, #39, #40, #44. Duplicates of Batch 3: #18 (= #3C.3), #21 (= #3B.1).
 
----
+### Critical
 
-## Batch 5 — Low (Style & Minor)
+- [x] **#23** `maps.py:568-569` — `safe_name()` allows `..` path traversal. Strip leading dots, validate result stays within base dir.
 
-- [ ] **#33** `pipeline.py:400, 785` — `assert` used for control flow. Replace with `if not x: raise ValueError(...)`.
-- [ ] **#34** `pipeline.py:76-80` — `_load_prompt` gives raw `FileNotFoundError`. Catch and re-raise with computed path.
-- [ ] **#35** `store.py:29-35` — `find_by_name` is O(n) full scan. Acceptable for CLI, note for future indexing.
-- [ ] **#36** `maps.py:354-392` — Float-to-int truncation in scoring. Use `round()` instead of `int()`.
-- [ ] **#37** `maps.py:344` — Photo download failures fully silent. Add `log.debug()` on exception.
-- [ ] **#38** `maps.py:556-560` — `phone` stored as `""` instead of `None`. Use `None` consistently with `BusinessData`.
-- [ ] **#39** `generator.py:63` — Deferred import of `safe_name` inside function. Move to module-level.
-- [ ] **#40** `generator.py:71-76` — No validation that Claude output is HTML. Add `"<html" in html` sanity check.
-- [ ] **#41** `tester.py:63-67` — `safe_name` parameter accepted but never used. Remove or implement.
-- [ ] **#42** `tester.py:180` — `print()` instead of `logging`. Add `log = logging.getLogger(__name__)`.
-- [ ] **#43** `deployer.py:76` — `VERCEL_PROJECT_NAME` env var documented but never read. Wire it up or remove from docs.
-- [ ] **#44** `utils.py:13-17` — `atomic_write` sets `0o600` perms via `mkstemp`. Preserve original file permissions if file exists.
-- [ ] **#45** `pyproject.toml:17` — `google-maps-places>=0.1.0` extremely loose pin. Add upper bound or lock file.
+### High
+
+- [x] **#17** `pipeline.py:1159` — CSV export uses first-doc fields only. Union all keys across documents.
+- [x] **#22** `maps.py:338-343` — Photo download: no content-type check, full response buffered in memory. Add content-type validation, use `iter_content()`.
+- [x] **#24** `maps.py:541-565` — `only_media` with no existing photo refs → partial enrichment saved as "enriched". Guard against incomplete state.
+- [x] **#32** `maps.py` (all API calls) — No retry logic on transient errors (429, 503, `DeadlineExceeded`). Add `google-api-core` retry parameters.
+
+### Medium
+
+- [x] **#19** `store.py:53-79` — `upsert_business` doesn't clear `error_detail` on successful update. Add `"error_detail": ""` to update dict.
+- [x] **#20** `store.py:118-126` — `update_status` is silent no-op for unknown `place_id`. Return bool or raise.
+- [x] **#27** `emailer.py:118-129` — No email address validation on `to_email`. Validate format before creating draft.
+- [x] **#29** `tester.py:170` — `networkidle` causes 30s hangs. Switch to `domcontentloaded` + explicit short wait.
+- [x] **#33** `pipeline.py:400, 785` — `assert` used for control flow. Replace with `if not x: raise ValueError(...)`.
+- [x] **#43** `deployer.py:76` — `VERCEL_PROJECT_NAME` env var documented but never read. Wire it up or remove from docs.
+
+### Low
+
+- [x] **#25** `deployer.py:77-79` — Non-atomic `vercel.json` write. Use `atomic_write()`.
+- [x] **#28** `emailer.py:160-166` — Label application non-atomic. Log warning if label step fails; consider retry.
+- [x] **#34** `pipeline.py:76-80` — `_load_prompt` gives raw `FileNotFoundError`. Catch and re-raise with computed path.
+- [x] **#37** `maps.py:344` — Photo download failures fully silent. Add `log.debug()` on exception.
+- [x] **#41** `tester.py:63-67` — `safe_name` parameter accepted but never used. Remove or implement.
+- [x] **#42** `tester.py:180` — `print()` instead of `logging`. Add `log = logging.getLogger(__name__)`.
+- [x] **#45** `pyproject.toml:17` — `google-maps-places>=0.1.0` extremely loose pin. Add upper bound or lock file.
 
 ---
 
@@ -110,8 +81,8 @@
 | 1 — Critical | 6 | 6 | 0 |
 | 2 — High | 9 | 9 | 0 |
 | 3 — REST API | 14 | 0 | 14 |
-| 4 — Medium | 17 | 0 | 17 |
-| 5 — Low | 13 | 0 | 13 |
-| **Total** | **59** | **15** | **44** |
+| 6 — Verified Bugs | 17 | 17 | 0 |
+| **Total** | **46** | **32** | **14** |
 
-> Some issues appear in multiple batches (e.g. #8/#3C.2, #18/#3C.3, #21/#3B.1, #3/#3D.1, #12/#3D.3). Fix once, check off both.
+> Batches 4 & 5 triaged: 10 false positives dismissed, 2 duplicates folded into Batch 3, 17 real bugs promoted to Batch 6.
+> Cross-batch overlaps: #8/#3C.2, #18/#3C.3, #21/#3B.1, #3/#3D.1, #12/#3D.3 — fix once, check off both.

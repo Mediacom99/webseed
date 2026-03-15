@@ -119,6 +119,9 @@ def generate_email(
     }
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 def create_draft(
     service: Any,
     to_email: str,
@@ -128,6 +131,9 @@ def create_draft(
     label_id: str,
 ) -> str:
     """Create a Gmail draft with embedded screenshot. Returns the draft ID."""
+    if to_email and not _EMAIL_RE.match(to_email):
+        raise ValueError(f"Invalid email address: {to_email!r}")
+
     msg = MIMEMultipart("related")
     msg["Subject"] = subject
     sender_email = os.getenv("CONTACT_EMAIL", "")
@@ -170,11 +176,14 @@ def create_draft(
 
     # Apply label to the draft message
     if label_id:
-        message_id: str = draft["message"]["id"]
-        service.users().messages().modify(
-            userId="me",
-            id=message_id,
-            body={"addLabelIds": [label_id]},
-        ).execute()
+        try:
+            message_id: str = draft["message"]["id"]
+            service.users().messages().modify(
+                userId="me",
+                id=message_id,
+                body={"addLabelIds": [label_id]},
+            ).execute()
+        except Exception as e:
+            log.warning("Failed to apply label '%s' to draft: %s", label_id, e)
 
     return str(draft["id"])

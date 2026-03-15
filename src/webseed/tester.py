@@ -1,9 +1,12 @@
 """Visual testing via Claude Code CLI + Playwright MCP, and email screenshots."""
 
 import json
+import logging
 import os
 import re
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 from playwright.sync_api import sync_playwright
 
@@ -64,7 +67,6 @@ def visual_test(
     url: str,
     business_name: str,
     category: str,
-    safe_name: str,
     screenshots_dir: str,
     prompt_template: str,
     model: str = "sonnet",
@@ -167,7 +169,7 @@ def capture_email_screenshot(url: str, safe_name: str, screenshots_dir: str) -> 
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1280, "height": 600})
             try:
-                page.goto(url, timeout=30000, wait_until="networkidle")
+                page.goto(url, timeout=30000, wait_until="domcontentloaded")
                 page.screenshot(
                     path=screenshot_path,
                     clip={"x": 0, "y": 0, "width": 1280, "height": 600},
@@ -177,5 +179,5 @@ def capture_email_screenshot(url: str, safe_name: str, screenshots_dir: str) -> 
 
         return screenshot_path
     except Exception as e:
-        print(f"  ⚠️ Screenshot email fallito: {e}")
+        log.warning("Screenshot email fallito: %s", e)
         return ""

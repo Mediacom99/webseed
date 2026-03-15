@@ -55,6 +55,7 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
     if existing:
         # Update mutable fields only — preserve status, URLs, email tracking
         update_fields: dict[str, Any] = {
+            "error_detail": "",
             "rating": biz.rating,
             "reviews": biz.reviews,
             "address": biz.address,
@@ -125,7 +126,9 @@ def update_status(
     updates: dict[str, Any] = {"status": status, "updated_at": datetime.now().isoformat()}
     if extra:
         updates.update(extra)
-    db.update(cast(dict[str, object], updates), Biz.place_id == place_id)  # type: ignore[arg-type]
+    updated = db.update(cast(dict[str, object], updates), Biz.place_id == place_id)  # type: ignore[arg-type]
+    if not updated:
+        raise ValueError(f"No business found with place_id '{place_id}'")
 
 
 def delete_business(db: TinyDB, place_id: str) -> bool:

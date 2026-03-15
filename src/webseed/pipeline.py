@@ -77,8 +77,14 @@ def _doc_to_business_data(doc: dict[str, Any], results_dir: str = "results") -> 
 def _load_prompt(filename: str) -> str:
     """Load a prompt template from the prompts/ directory."""
     path = os.path.join(os.path.dirname(__file__) or ".", "prompts", filename)
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Prompt template not found: {path}. "
+            f"Re-install with: pip install -e ."
+        ) from None
 
 
 def _require_env(*names: str) -> dict[str, str]:
@@ -402,10 +408,11 @@ def cmd_test(args: argparse.Namespace) -> None:
 
                 # Code review passed — optionally run Playwright visual test
                 if args.playwright:
-                    assert visual_test_prompt is not None
+                    if visual_test_prompt is None:
+                        raise RuntimeError("visual_test_prompt is required when --playwright is set")
                     print(f"  🧪 Playwright visual test (iterazione {iteration})...")
                     test_result = tester.visual_test(
-                        local_url, biz_name, category, safe,
+                        local_url, biz_name, category,
                         screenshots_dir, visual_test_prompt,
                         model=args.test_model,
                     )
@@ -796,9 +803,10 @@ def cmd_run(args: argparse.Namespace) -> None:
                     print(f"  ⚠️  Business non trovato nel DB, skip email")
                     continue
 
-                assert email_prompt is not None
-                assert email_sys_prompt is not None
-                assert label_id is not None
+                if email_prompt is None or email_sys_prompt is None:
+                    raise RuntimeError("Email prompt templates failed to load")
+                if label_id is None:
+                    raise RuntimeError("Gmail label ID not initialized")
                 email_data = emailer.generate_email(
                     biz, str(fresh_doc.get("vercel_url", "")), email_prompt,
                     email_sys_prompt,
@@ -1184,8 +1192,11 @@ def cmd_export_csv(args: argparse.Namespace) -> None:
         print("Database vuoto.")
         return
 
-    # Use all keys from first doc as fieldnames (exclude TinyDB internals)
-    fieldnames = [k for k in docs[0].keys() if not k.startswith("_")]
+    # Union all keys across all documents (exclude TinyDB internals)
+    all_keys: set[str] = set()
+    for doc in docs:
+        all_keys.update(k for k in doc if not k.startswith("_"))
+    fieldnames = sorted(all_keys)
 
     with open(args.output, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import random
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
+from collections.abc import Callable
 
 import requests
 from google.api_core import client_options as client_options_lib
@@ -104,7 +107,9 @@ class BusinessData:
 
 
 def safe_name(name: str) -> str:
-    return name.lower().replace(" ", "_").replace("/", "_")[:30]
+    safe = name.lower().replace(" ", "_").replace("/", "_").replace("..", "")[:30]
+    safe = safe.strip(".")
+    return safe or "unnamed"
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +166,35 @@ def _get_client(api_key: str) -> PlacesClient:
 
 
 # ---------------------------------------------------------------------------
+# Transient error retry helper
+# ---------------------------------------------------------------------------
+
+_T = TypeVar("_T")
+
+_TRANSIENT_EXCEPTIONS = (
+    google_exceptions.TooManyRequests,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.DeadlineExceeded,
+)
+
+
+def _retry_transient(fn: Callable[[], _T], max_attempts: int = 3) -> _T:
+    """Retry *fn* on transient Google API errors with exponential backoff + jitter."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except _TRANSIENT_EXCEPTIONS as e:
+            if attempt == max_attempts:
+                raise
+            delay = (2 ** attempt) + random.uniform(0, 1)
+            log.warning("Transient API error (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt, max_attempts, e, delay)
+            time.sleep(delay)
+    # unreachable, but keeps pyright happy
+    raise RuntimeError("_retry_transient: max attempts exceeded")
+
+
+# ---------------------------------------------------------------------------
 # Places SDK search helpers
 # ---------------------------------------------------------------------------
 
@@ -185,10 +219,10 @@ def _search_text(
                 radius=radius,
             )
         )
-    response = client.search_text(  # type: ignore[reportUnknownMemberType]
+    response = _retry_transient(lambda: client.search_text(  # type: ignore[reportUnknownMemberType]
         request=request,
         metadata=[("x-goog-fieldmask", _SEARCH_FIELD_MASK)],
-    )
+    ))
     return list(response.places)
 
 
@@ -215,20 +249,20 @@ def _search_nearby(
     if included_types:
         request.included_types = included_types
 
-    response = client.search_nearby(  # type: ignore[reportUnknownMemberType]
+    response = _retry_transient(lambda: client.search_nearby(  # type: ignore[reportUnknownMemberType]
         request=request,
         metadata=[("x-goog-fieldmask", _SEARCH_FIELD_MASK)],
-    )
+    ))
     return list(response.places)
 
 
 def _get_place_details(api_key: str, place_id: str) -> place_types.Place:
     """Place Details (New). Full enrichment for a single place."""
     client = _get_client(api_key)
-    return client.get_place(  # type: ignore[reportUnknownMemberType]
+    return _retry_transient(lambda: client.get_place(  # type: ignore[reportUnknownMemberType]
         request=places_service.GetPlaceRequest(name=f"places/{place_id}"),
         metadata=[("x-goog-fieldmask", _DETAIL_FIELD_MASK)],
-    )
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +321,9 @@ def _extract_photo_refs(photos: Any) -> list[str]:
     return refs
 
 
+_MAX_PHOTO_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
 def download_photos(
     photo_refs: list[str], api_key: str, img_dir: str
 ) -> list[str]:
@@ -303,13 +340,36 @@ def download_photos(
                     max_width_px=800,
                 )
             )
-            resp = requests.get(photo_media.photo_uri, timeout=10)
-            if resp.status_code == 200:
+            resp = requests.get(photo_media.photo_uri, timeout=10, stream=True)
+            if resp.status_code != 200:
+                log.debug("Photo %d: HTTP %d, skipping", i + 1, resp.status_code)
+                continue
+
+            content_type = resp.headers.get("Content-Type", "")
+            if not content_type.startswith("image/"):
+                log.debug("Photo %d: unexpected Content-Type '%s', skipping", i + 1, content_type)
+                resp.close()
+                continue
+
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in resp.iter_content(chunk_size=8192):
+                total += len(chunk)
+                if total > _MAX_PHOTO_BYTES:
+                    log.warning("Photo %d: exceeds %d bytes, skipping", i + 1, _MAX_PHOTO_BYTES)
+                    break
+                chunks.append(chunk)
+            else:
+                # Only write if loop completed without break (within size limit)
                 path = os.path.join(img_dir, f"photo{i + 1}.jpg")
                 with open(path, "wb") as f:
-                    f.write(resp.content)
+                    for c in chunks:
+                        f.write(c)
                 paths.append(f"img/photo{i + 1}.jpg")
-        except (google_exceptions.GoogleAPIError, requests.RequestException):
+
+            resp.close()
+        except (google_exceptions.GoogleAPIError, requests.RequestException) as e:
+            log.debug("Photo %d download failed: %s", i + 1, e)
             continue
 
     return paths
@@ -506,31 +566,33 @@ def enrich_business(
     result: dict[str, Any] = {}
     photo_refs: list[str] = existing_photo_refs if existing_photo_refs is not None else []
 
-    # ── Place Details (unless only_media with existing refs) ──
-    if not only_media or not photo_refs:
+    # ── Place Details (full enrichment) ──
+    if not only_media:
         details = _get_place_details(api_key, place_id)
 
         # Website check
         if details.website_uri:
             return {"has_website": True}
 
-        if not only_media:
-            # Full enrichment
-            enrichment = _extract_enrichment(details)
-            lead_score = _compute_lead_score(details)
+        # Full enrichment
+        enrichment = _extract_enrichment(details)
+        lead_score = _compute_lead_score(details)
 
-            # Phone
-            phone = details.international_phone_number or details.national_phone_number or None
+        # Phone
+        phone = details.international_phone_number or details.national_phone_number or None
 
-            result.update({
-                "phone": phone or "",
-                "lead_score": lead_score,
-                **enrichment,
-            })
+        result.update({
+            "phone": phone or "",
+            "lead_score": lead_score,
+            **enrichment,
+        })
 
         # Extract photo refs from details
         photo_refs = _extract_photo_refs(details.photos) if details.photos else []
         result["photo_refs"] = photo_refs
+    elif not photo_refs:
+        log.warning("only_media requested for '%s' but no photo refs available, skipping", name)
+        return {}
 
     # ── Photo download ──
     safe = safe_name(name)

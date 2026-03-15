@@ -7,6 +7,8 @@ import re
 import shutil
 import subprocess
 
+from webseed.utils import atomic_write
+
 log = logging.getLogger(__name__)
 
 
@@ -73,10 +75,8 @@ def deploy(site_dir: str, vercel_bin: str) -> str:
                 vercel_config = json.load(f)
         except json.JSONDecodeError:
             vercel_config = {}
-    vercel_config["name"] = "webseed"
-    with open(vercel_json_path, "w") as f:
-        json.dump(vercel_config, f, indent=2)
-        f.write("\n")
+    vercel_config["name"] = os.getenv("VERCEL_PROJECT_NAME", "webseed")
+    atomic_write(vercel_json_path, json.dumps(vercel_config, indent=2) + "\n")
 
     log.debug("Deploying: %s", site_dir)
 
