@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import base64
+import logging
 import os
 import re
+import sys
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Any
+
+log = logging.getLogger(__name__)
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -27,7 +31,8 @@ from webseed.utils import atomic_write
 if TYPE_CHECKING:
     from webseed.maps import BusinessData
 
-SENDER_NAME = os.getenv("SENDER_NAME", "Edoardo di WebSeed")
+def _sender_name() -> str:
+    return os.getenv("SENDER_NAME", "Edoardo di WebSeed")
 
 _SUBJECT_RE = re.compile(r"---SUBJECT---\s*(.+?)\s*---SUBJECT---", re.DOTALL)
 _BODY_RE = re.compile(r"---BODY_HTML---\s*(.+?)\s*---BODY_HTML---", re.DOTALL)
@@ -46,6 +51,11 @@ def authenticate() -> Any:
         if creds and creds.expired and creds.refresh_token:  # type: ignore[reportUnknownMemberType]
             creds.refresh(Request())  # type: ignore[reportUnknownMemberType]
         else:
+            if not sys.stdin.isatty():
+                raise RuntimeError(
+                    "Gmail OAuth requires an interactive terminal for first-time authorization. "
+                    f"Run the email step interactively to create {token_file}, then re-run headless."
+                )
             flow: InstalledAppFlow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)  # type: ignore[no-untyped-call]
             creds = flow.run_local_server(port=0)  # type: ignore[no-untyped-call]
         assert creds is not None
@@ -87,15 +97,19 @@ def generate_email(
     model: str = "sonnet",
 ) -> dict[str, str]:
     """Call Claude to generate a personalized email. Returns {'subject', 'body_html'}."""
+    def _esc(val: str) -> str:
+        """Escape braces in user data to prevent str.format() KeyError."""
+        return val.replace("{", "{{").replace("}", "}}")
+
     prompt = prompt_template.format(
-        name=biz.name,
-        category=biz.category.replace("_", " "),
-        address=biz.address,
-        phone=biz.phone or "Non disponibile",
+        name=_esc(biz.name),
+        category=_esc(biz.category.replace("_", " ")),
+        address=_esc(biz.address),
+        phone=_esc(biz.phone or "Non disponibile"),
         rating=biz.rating,
         reviews=biz.reviews,
-        site_url=site_url,
-        contact_email=contact_email,
+        site_url=_esc(site_url),
+        contact_email=_esc(contact_email),
     )
 
     raw_text = run_claude_cli(prompt, system_prompt=EMAIL_SYSTEM_PROMPT, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_EMAIL", 180))
@@ -126,7 +140,13 @@ def create_draft(
     """Create a Gmail draft with embedded screenshot. Returns the draft ID."""
     msg = MIMEMultipart("related")
     msg["Subject"] = subject
-    msg["From"] = SENDER_NAME
+    sender_email = os.getenv("CONTACT_EMAIL", "")
+    sender_name = _sender_name()
+    if sender_email:
+        msg["From"] = f"{sender_name} <{sender_email}>"
+    else:
+        log.warning("CONTACT_EMAIL not set — From header will have display name only")
+        msg["From"] = sender_name
     if to_email:
         msg["To"] = to_email
 

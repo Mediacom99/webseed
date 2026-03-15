@@ -23,7 +23,8 @@ from webseed import store
 if TYPE_CHECKING:
     from webseed.maps import BusinessData
 
-GMAIL_LABEL_NAME = os.getenv("GMAIL_LABEL_NAME", "webseed-queue")
+def _gmail_label_name() -> str:
+    return os.getenv("GMAIL_LABEL_NAME", "webseed-queue")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -33,7 +34,7 @@ def _run_id(subcommand: str) -> str:
     return f"{subcommand}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-def _doc_to_business_data(doc: dict[str, Any]) -> BusinessData:
+def _doc_to_business_data(doc: dict[str, Any], results_dir: str = "results") -> BusinessData:
     """Reconstruct a BusinessData dataclass from a DB document."""
     from webseed.maps import BusinessData, safe_name
 
@@ -41,7 +42,7 @@ def _doc_to_business_data(doc: dict[str, Any]) -> BusinessData:
     photo_paths: list[str] = doc.get("photo_paths", [])
     if not photo_paths:
         safe = safe_name(str(doc["name"]))
-        img_dir = os.path.join("results", safe, "img")
+        img_dir = os.path.join(results_dir, safe, "img")
         if os.path.isdir(img_dir):
             photo_paths = [
                 f"img/{f}" for f in sorted(os.listdir(img_dir)) if f.endswith(".jpg")
@@ -144,7 +145,7 @@ def cmd_search(args: argparse.Namespace) -> None:
         return
 
     # Validate required args for actual search
-    missing = []
+    missing: list[str] = []
     if not args.location:
         missing.append("--location")
     if not args.query:
@@ -293,7 +294,7 @@ def cmd_generate(args: argparse.Namespace) -> None:
     print(f"\n🤖 Generazione siti per {len(businesses)} business\n")
 
     for i, doc in enumerate(businesses, 1):
-        biz = _doc_to_business_data(doc)
+        biz = _doc_to_business_data(doc, args.results_dir)
         print(f"[{i}/{len(businesses)}] {biz.name}")
 
         try:
@@ -553,12 +554,12 @@ def cmd_email(args: argparse.Namespace) -> None:
     contact_email = env["CONTACT_EMAIL"]
     prompt_template = _load_prompt("email_gen.txt")
     gmail_service: Any = emailer.authenticate()
-    label_id: str = emailer.ensure_label(gmail_service, GMAIL_LABEL_NAME)
+    label_id: str = emailer.ensure_label(gmail_service, _gmail_label_name())
 
     print(f"\n📧 Creazione email per {len(businesses)} business\n")
 
     for i, doc in enumerate(businesses, 1):
-        biz = _doc_to_business_data(doc)
+        biz = _doc_to_business_data(doc, args.results_dir)
         print(f"[{i}/{len(businesses)}] {biz.name}")
 
         try:
@@ -592,7 +593,7 @@ def cmd_email(args: argparse.Namespace) -> None:
             )
             print(f"  ❌ Error: {e}")
 
-    print(f"\n✓ Email drafts creati. Controlla Gmail con label '{GMAIL_LABEL_NAME}'.")
+    print(f"\n✓ Email drafts creati. Controlla Gmail con label '{_gmail_label_name()}'.")
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -642,7 +643,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"\n🚀 Pipeline completa per {len(businesses)} business\n")
 
     for i, doc in enumerate(businesses, 1):
-        biz = _doc_to_business_data(doc)
+        biz = _doc_to_business_data(doc, args.results_dir)
         place_id = biz.place_id
         safe = safe_name(biz.name)
         site_dir = os.path.join(args.results_dir, safe)
@@ -680,7 +681,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 # Refresh biz with enriched data
                 fresh_doc = store.find_by_place_id(db, place_id)
                 if fresh_doc:
-                    biz = _doc_to_business_data(fresh_doc)
+                    biz = _doc_to_business_data(fresh_doc, args.results_dir)
                 print(f"  ✅ Enriched (score:{enriched.get('lead_score', '?')} photos:{len(enriched.get('photo_paths', []))})")
 
             # ── GENERATE ──
@@ -773,7 +774,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 if gmail_service is None:
                     email_prompt = _load_prompt("email_gen.txt")
                     gmail_service = emailer.authenticate()
-                    label_id = emailer.ensure_label(gmail_service, GMAIL_LABEL_NAME)
+                    label_id = emailer.ensure_label(gmail_service, _gmail_label_name())
 
                 print("\n  📧 Generazione email...")
                 # Re-read doc to get latest screenshot path
@@ -804,7 +805,12 @@ def cmd_run(args: argparse.Namespace) -> None:
             break
         except Exception as e:
             print(f"  ❌ Error: {e}")
-            # Status already set by the failing step or leave as-is
+            log.exception("Unexpected error in cmd_run for %s", place_id)
+            # Update status only if not already in an error state
+            current_doc = store.find_by_place_id(db, place_id)
+            current_status = str(current_doc.get("status", "")) if current_doc else ""
+            if not current_status.startswith("error_"):
+                store.update_status(db, place_id, "error_run", {"error_detail": str(e)})
 
         print()
 

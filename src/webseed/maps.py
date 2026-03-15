@@ -576,9 +576,8 @@ def enrich_business(
         result["photo_paths"] = []
         result["has_photos"] = False
 
-    # Unsplash fallback
-    unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
-    result["fallback_unsplash_url"] = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
+    # Unsplash fallback removed — source.unsplash.com is dead (410 Gone since 2024)
+    result["fallback_unsplash_url"] = ""
 
     return result
 
@@ -713,7 +712,6 @@ def search(
 
         primary_type = p.primary_type or ""
         category = primary_type or "establishment"
-        unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
 
         biz = BusinessData(
             name=_display_name(p),
@@ -727,7 +725,7 @@ def search(
             has_photos=False,
             photo_paths=[],
             photo_refs=[],
-            fallback_unsplash_url=f"https://source.unsplash.com/1200x600/?{unsplash_query}",
+            fallback_unsplash_url="",
             lead_score=pre_score,
             business_status=p.business_status.name if p.business_status else "OPERATIONAL",
             primary_type=primary_type or None,

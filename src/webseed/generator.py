@@ -18,27 +18,28 @@ def _build_prompt(biz: BusinessData, prompt_template: str) -> str:
         )
         gallery_instruction = f"{len(biz.photo_paths)} foto Maps disponibili"
     else:
-        images_block = (
-            f"Nessuna foto Maps disponibile. Fallback Unsplash: {biz.fallback_unsplash_url}"
-        )
+        images_block = "Nessuna foto disponibile."
         image_instructions = (
-            f"Non ci sono foto Maps. Usa questo URL Unsplash come hero background: "
-            f"{biz.fallback_unsplash_url} "
-            f"Per la galleria, usa 3 varianti dello stesso URL Unsplash con dimensioni diverse "
-            f"(aggiungendo /?{biz.category}-2, /?{biz.category}-3)."
+            "Non ci sono foto. Usa un hero con gradiente o colore solido di sfondo, "
+            "con il nome del business in grande. NON usare URL di immagini esterni. "
+            "Per la galleria, ometti la sezione oppure usa placeholder con icone SVG inline."
         )
-        gallery_instruction = "usa URL Unsplash"
+        gallery_instruction = "nessuna foto, usa design senza immagini"
+
+    def _esc(val: str) -> str:
+        """Escape braces in user data to prevent str.format() KeyError."""
+        return val.replace("{", "{{").replace("}", "}}")
 
     return prompt_template.format(
-        name=biz.name,
-        category=biz.category.replace("_", " "),
-        address=biz.address,
-        phone=biz.phone or "Non disponibile",
+        name=_esc(biz.name),
+        category=_esc(biz.category.replace("_", " ")),
+        address=_esc(biz.address),
+        phone=_esc(biz.phone or "Non disponibile"),
         rating=biz.rating,
         reviews=biz.reviews,
-        images_block=images_block,
-        image_instructions=image_instructions,
-        gallery_instruction=gallery_instruction,
+        images_block=_esc(images_block),
+        image_instructions=_esc(image_instructions),
+        gallery_instruction=_esc(gallery_instruction),
     )
 
 
