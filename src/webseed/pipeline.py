@@ -557,6 +557,7 @@ def cmd_email(args: argparse.Namespace) -> None:
 
     contact_email = env["CONTACT_EMAIL"]
     prompt_template = _load_prompt("email_gen.txt")
+    email_system_prompt = _load_prompt("email_gen_system.txt")
     gmail_service: Any = emailer.authenticate()
     label_id: str = emailer.ensure_label(gmail_service, _gmail_label_name())
 
@@ -571,6 +572,7 @@ def cmd_email(args: argparse.Namespace) -> None:
                 biz,
                 str(doc.get("vercel_url", "")),
                 prompt_template,
+                email_system_prompt,
                 contact_email=contact_email,
                 model=args.model,
             )
@@ -641,6 +643,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     # Email setup (lazy — only init if we reach that step)
     email_prompt: str | None = None
+    email_sys_prompt: str | None = None
     gmail_service: Any = None
     label_id: str | None = None
     contact_email = os.getenv("CONTACT_EMAIL", "")
@@ -782,6 +785,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
                 if gmail_service is None:
                     email_prompt = _load_prompt("email_gen.txt")
+                    email_sys_prompt = _load_prompt("email_gen_system.txt")
                     gmail_service = emailer.authenticate()
                     label_id = emailer.ensure_label(gmail_service, _gmail_label_name())
 
@@ -793,9 +797,11 @@ def cmd_run(args: argparse.Namespace) -> None:
                     continue
 
                 assert email_prompt is not None
+                assert email_sys_prompt is not None
                 assert label_id is not None
                 email_data = emailer.generate_email(
                     biz, str(fresh_doc.get("vercel_url", "")), email_prompt,
+                    email_sys_prompt,
                     contact_email=contact_email, model=args.model,
                 )
                 draft_id = emailer.create_draft(
@@ -1286,6 +1292,7 @@ def main() -> None:
         "searched", "enriched", "generated", "tested", "deployed",
         "email_queued", "emailed", "opted_out",
         "error_enrich", "error_generate", "error_test", "error_deploy", "error_email",
+        "error_run",
     ]
     p_reset.add_argument(
         "--to", required=True, choices=VALID_STATUSES,

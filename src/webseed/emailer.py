@@ -85,15 +85,9 @@ def ensure_label(service: Any, label_name: str) -> str:
     return str(created["id"])
 
 
-EMAIL_SYSTEM_PROMPT = (
-    "Sei un copywriter esperto in comunicazione B2B italiana. "
-    "Rispondi usando ESCLUSIVAMENTE i marker ---SUBJECT--- e ---BODY_HTML--- come indicato nel prompt. "
-    "NON usare JSON, NON usare markdown, NON aggiungere testo fuori dai marker."
-)
-
-
 def generate_email(
-    biz: BusinessData, site_url: str, prompt_template: str, contact_email: str = "",
+    biz: BusinessData, site_url: str, prompt_template: str, system_prompt: str,
+    contact_email: str = "",
     model: str = "sonnet",
 ) -> dict[str, str]:
     """Call Claude to generate a personalized email. Returns {'subject', 'body_html'}."""
@@ -108,7 +102,7 @@ def generate_email(
         contact_email=contact_email,
     )
 
-    raw_text = run_claude_cli(prompt, system_prompt=EMAIL_SYSTEM_PROMPT, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_EMAIL", 180))
+    raw_text = run_claude_cli(prompt, system_prompt=system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_EMAIL", 180))
 
     subject_match = _SUBJECT_RE.search(raw_text)
     body_match = _BODY_RE.search(raw_text)

@@ -25,14 +25,20 @@ def _build_prompt(
     no_photos_config: dict[str, str],
 ) -> str:
     """Fill the prompt template with business data."""
-    if biz.has_photos:
-        images_block = "\n".join(f"- {p}" for p in biz.photo_paths)
-        image_instructions = photos_config["image_instructions"]
-        gallery_instruction = f"{len(biz.photo_paths)} {photos_config['gallery_suffix']}"
-    else:
-        images_block = no_photos_config["images_block"]
-        image_instructions = no_photos_config["image_instructions"]
-        gallery_instruction = no_photos_config["gallery_instruction"]
+    try:
+        if biz.has_photos:
+            images_block = "\n".join(f"- {p}" for p in biz.photo_paths)
+            image_instructions = photos_config["image_instructions"]
+            gallery_instruction = f"{len(biz.photo_paths)} {photos_config['gallery_suffix']}"
+        else:
+            images_block = no_photos_config["images_block"]
+            image_instructions = no_photos_config["image_instructions"]
+            gallery_instruction = no_photos_config["gallery_instruction"]
+    except KeyError as exc:
+        config_name = "site_gen_photos.txt" if biz.has_photos else "site_gen_no_photos.txt"
+        raise ValueError(
+            f"Missing key {exc} in {config_name} — check the prompt file has all required key=value pairs"
+        ) from exc
 
     return prompt_template.format(
         name=biz.name,

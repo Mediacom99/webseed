@@ -89,7 +89,7 @@ class BusinessData:
     has_photos: bool
     photo_paths: list[str]
     fallback_unsplash_url: str
-    photo_refs: list[str] = field(default_factory=list)  # Places API photo resource names for deferred download
+    photo_refs: list[str] = field(default_factory=lambda: list[str]())  # Places API photo resource names for deferred download
     # New fields for lead scoring & enrichment (all defaulted for backward compat)
     lead_score: int = 0
     price_level: Optional[str] = None
@@ -504,7 +504,7 @@ def enrich_business(
         if a website was discovered during enrichment (caller should handle).
     """
     result: dict[str, Any] = {}
-    photo_refs: list[str] = existing_photo_refs or []
+    photo_refs: list[str] = existing_photo_refs if existing_photo_refs is not None else []
 
     # ── Place Details (unless only_media with existing refs) ──
     if not only_media or not photo_refs:
