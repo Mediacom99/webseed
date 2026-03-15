@@ -8,38 +8,42 @@ from webseed.maps import BusinessData
 from webseed.utils import atomic_write
 
 
-def _build_prompt(biz: BusinessData, prompt_template: str) -> str:
+def parse_kv(text: str) -> dict[str, str]:
+    """Parse a simple ``key: value`` text file into a dict (one pair per line)."""
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        if ": " in line:
+            key, value = line.split(": ", 1)
+            result[key.strip()] = value.strip()
+    return result
+
+
+def _build_prompt(
+    biz: BusinessData,
+    prompt_template: str,
+    photos_config: dict[str, str],
+    no_photos_config: dict[str, str],
+) -> str:
     """Fill the prompt template with business data."""
     if biz.has_photos:
         images_block = "\n".join(f"- {p}" for p in biz.photo_paths)
-        image_instructions = (
-            "Usa le foto di Google Maps (path relativi indicati sopra). "
-            "Hero background: prima foto. Galleria: mostra tutte le foto disponibili in una grid."
-        )
-        gallery_instruction = f"{len(biz.photo_paths)} foto Maps disponibili"
+        image_instructions = photos_config["image_instructions"]
+        gallery_instruction = f"{len(biz.photo_paths)} {photos_config['gallery_suffix']}"
     else:
-        images_block = "Nessuna foto disponibile."
-        image_instructions = (
-            "Non ci sono foto. Usa un hero con gradiente o colore solido di sfondo, "
-            "con il nome del business in grande. NON usare URL di immagini esterni. "
-            "Per la galleria, ometti la sezione oppure usa placeholder con icone SVG inline."
-        )
-        gallery_instruction = "nessuna foto, usa design senza immagini"
-
-    def _esc(val: str) -> str:
-        """Escape braces in user data to prevent str.format() KeyError."""
-        return val.replace("{", "{{").replace("}", "}}")
+        images_block = no_photos_config["images_block"]
+        image_instructions = no_photos_config["image_instructions"]
+        gallery_instruction = no_photos_config["gallery_instruction"]
 
     return prompt_template.format(
-        name=_esc(biz.name),
-        category=_esc(biz.category.replace("_", " ")),
-        address=_esc(biz.address),
-        phone=_esc(biz.phone or "Non disponibile"),
+        name=biz.name,
+        category=biz.category.replace("_", " "),
+        address=biz.address,
+        phone=biz.phone or "Non disponibile",
         rating=biz.rating,
         reviews=biz.reviews,
-        images_block=_esc(images_block),
-        image_instructions=_esc(image_instructions),
-        gallery_instruction=_esc(gallery_instruction),
+        images_block=images_block,
+        image_instructions=image_instructions,
+        gallery_instruction=gallery_instruction,
     )
 
 
@@ -56,6 +60,8 @@ def generate(
     prompt_template: str,
     system_prompt: str,
     model: str = "sonnet",
+    photos_config: dict[str, str] | None = None,
+    no_photos_config: dict[str, str] | None = None,
 ) -> str:
     """Generate index.html for the business. Returns the site directory path.
 
@@ -67,7 +73,7 @@ def generate(
     site_dir = os.path.join(output_dir, safe)
     os.makedirs(site_dir, exist_ok=True)
 
-    prompt = _build_prompt(biz, prompt_template)
+    prompt = _build_prompt(biz, prompt_template, photos_config or {}, no_photos_config or {})
 
     raw_text = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_GENERATE", 120))
 

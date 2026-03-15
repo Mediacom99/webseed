@@ -290,6 +290,8 @@ def cmd_generate(args: argparse.Namespace) -> None:
 
     prompt_template = _load_prompt("site_gen.txt")
     system_prompt = _load_prompt("site_gen_system.txt")
+    photos_config = generator.parse_kv(_load_prompt("site_gen_photos.txt"))
+    no_photos_config = generator.parse_kv(_load_prompt("site_gen_no_photos.txt"))
 
     print(f"\n🤖 Generazione siti per {len(businesses)} business\n")
 
@@ -301,6 +303,8 @@ def cmd_generate(args: argparse.Namespace) -> None:
             site_dir = generator.generate(
                 biz, args.results_dir, prompt_template, system_prompt,
                 model=args.model,
+                photos_config=photos_config,
+                no_photos_config=no_photos_config,
             )
             store.update_status(db, biz.place_id, "generated")
             print(f"  ✅ {site_dir}")
@@ -616,7 +620,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     for doc in _resolve_many(db, args.place_ids):
         status = str(doc.get("status", ""))
         if status not in ("searched", "enriched", "generated", "tested", "deployed",
-                          "error_enrich", "error_generate", "error_test", "error_deploy", "error_email"):
+                          "error_enrich", "error_generate", "error_test", "error_deploy", "error_email",
+                          "error_run"):
             print(f"⚠️  {doc.get('name', doc['place_id'])} — status '{status}', non processabile.")
             continue
         businesses.append(doc)
@@ -628,6 +633,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     # Preload what we need
     prompt_template = _load_prompt("site_gen.txt")
     system_prompt = _load_prompt("site_gen_system.txt")
+    photos_config = generator.parse_kv(_load_prompt("site_gen_photos.txt"))
+    no_photos_config = generator.parse_kv(_load_prompt("site_gen_no_photos.txt"))
     code_review_prompt = _load_prompt("code_review.txt")
     fix_prompt = _load_prompt("fix_html.txt")
     screenshots_dir = os.path.join(args.results_dir, "screenshots")
@@ -690,6 +697,8 @@ def cmd_run(args: argparse.Namespace) -> None:
                 generator.generate(
                     biz, args.results_dir, prompt_template, system_prompt,
                     model=args.model,
+                    photos_config=photos_config,
+                    no_photos_config=no_photos_config,
                 )
                 store.update_status(db, place_id, "generated")
                 status = "generated"

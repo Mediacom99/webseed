@@ -97,19 +97,15 @@ def generate_email(
     model: str = "sonnet",
 ) -> dict[str, str]:
     """Call Claude to generate a personalized email. Returns {'subject', 'body_html'}."""
-    def _esc(val: str) -> str:
-        """Escape braces in user data to prevent str.format() KeyError."""
-        return val.replace("{", "{{").replace("}", "}}")
-
     prompt = prompt_template.format(
-        name=_esc(biz.name),
-        category=_esc(biz.category.replace("_", " ")),
-        address=_esc(biz.address),
-        phone=_esc(biz.phone or "Non disponibile"),
+        name=biz.name,
+        category=biz.category.replace("_", " "),
+        address=biz.address,
+        phone=biz.phone or "Non disponibile",
         rating=biz.rating,
         reviews=biz.reviews,
-        site_url=_esc(site_url),
-        contact_email=_esc(contact_email),
+        site_url=site_url,
+        contact_email=contact_email,
     )
 
     raw_text = run_claude_cli(prompt, system_prompt=EMAIL_SYSTEM_PROMPT, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_EMAIL", 180))

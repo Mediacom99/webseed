@@ -1,0 +1,2 @@
+image_instructions: Usa le foto di Google Maps (path relativi indicati sopra). Hero background: prima foto. Galleria: mostra tutte le foto disponibili in una grid.
+gallery_suffix: foto Maps disponibili

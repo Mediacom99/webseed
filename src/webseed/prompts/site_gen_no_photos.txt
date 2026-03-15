@@ -1,0 +1,3 @@
+images_block: Nessuna foto disponibile.
+image_instructions: Non ci sono foto. Usa un hero con gradiente o colore solido di sfondo, con il nome del business in grande. NON usare URL di immagini esterni. Per la galleria, ometti la sezione oppure usa placeholder con icone SVG inline.
+gallery_instruction: nessuna foto, usa design senza immagini

@@ -21,38 +21,6 @@ log = logging.getLogger(__name__)
 MAX_PHOTOS = 3
 _MAX_DETAIL_CALLS = 100  # cost safeguard
 
-CATEGORY_UNSPLASH: dict[str, str] = {
-    "restaurant": "italian-restaurant",
-    "italian_restaurant": "italian-restaurant",
-    "pizza_restaurant": "italian-pizza",
-    "food": "italian-food",
-    "bar": "coffee-bar",
-    "cafe": "cafe-coffee",
-    "coffee_shop": "cafe-coffee",
-    "bakery": "bakery-bread",
-    "hair_salon": "hair-salon",
-    "hair_care": "hair-salon",
-    "beauty_salon": "beauty-salon",
-    "barber_shop": "barber-shop",
-    "gym": "gym-fitness",
-    "fitness_center": "gym-fitness",
-    "store": "shop-retail",
-    "clothing_store": "clothing-store",
-    "lodging": "hotel-room",
-    "hotel": "hotel-room",
-    "bed_and_breakfast": "hotel-room",
-    "health": "medical-clinic",
-    "dentist": "dental-clinic",
-    "dental_clinic": "dental-clinic",
-    "car_repair": "auto-mechanic",
-    "veterinary_care": "veterinary-clinic",
-    "florist": "flower-shop",
-    "pharmacy": "pharmacy",
-    "spa": "spa-wellness",
-    "ice_cream_shop": "gelato-italy",
-}
-DEFAULT_UNSPLASH = "local-business-italy"
-
 # ---------------------------------------------------------------------------
 # Query-to-type expansion map (English Google type identifiers)
 # ---------------------------------------------------------------------------
