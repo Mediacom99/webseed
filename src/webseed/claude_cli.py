@@ -11,6 +11,18 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 
+def get_timeout(env_var: str, default: int) -> int:
+    """Read a timeout value from an environment variable, falling back to *default*."""
+    raw = os.environ.get(env_var)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        log.warning("%s=%r is not a valid integer, using default %d", env_var, raw, default)
+        return default
+
+
 def _find_claude_binary() -> str:
     """Return the path to the Claude Code CLI binary."""
     explicit = os.environ.get("CLAUDE_CLI_PATH")

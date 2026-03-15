@@ -7,7 +7,7 @@ Automated CLI pipeline that finds Italian local businesses without websites on G
 ## Tech Stack
 
 - **Python ≥3.11** — `src/` layout package, venv at `.venv/`, managed via `pyproject.toml` (`.python-version` pins 3.14 for dev)
-- **Google Maps Places API** (legacy) — business discovery via `googlemaps` library
+- **Google Maps Places API** (new v1) — business discovery + enrichment via `google-maps-places` SDK
 - **Claude Code CLI** — site generation, visual testing, HTML fixes, and email generation (via `claude --print` subprocess)
 - **Vercel CLI** — deployment (`npm i -g vercel`)
 - **Playwright MCP** — visual testing via Claude Code CLI (browser navigation, screenshots, DOM inspection)
@@ -30,7 +30,7 @@ webseed/                          (project root)
         ├── claude_cli.py          (Claude Code CLI subprocess helper)
         ├── pipeline.py           (CLI entry point, orchestrates all steps)
         ├── store.py              (TinyDB data store)
-        ├── maps.py               (Google Places search, photo download)
+        ├── maps.py               (Google Places search, enrichment, photo download)
         ├── generator.py          (Claude Code CLI HTML generation)
         ├── deployer.py           (Vercel deploy under shared 'webseed' project)
         ├── tester.py             (Visual testing via Claude CLI + email screenshots)
@@ -47,22 +47,22 @@ webseed/                          (project root)
 ## Pipeline Flow
 
 ```
-Search (Maps) → Generate (Claude) → Test (Code Review + optional Playwright) → Deploy (Vercel) → Email (Claude+Gmail Draft)
+Search (Maps) → Enrich (Place Details + Photos) → Generate (Claude) → Test (Code Review + optional Playwright) → Deploy (Vercel) → Email (Claude+Gmail Draft)
 ```
 
 Each step is independent and resumable. State is tracked per-business in TinyDB with status progression:
-`searched` → `generated` → `tested` → `deployed` → `email_queued`
+`searched` → `enriched` → `generated` → `tested` → `deployed` → `email_queued`
 
-Error statuses: `error_generate`, `error_test`, `error_deploy`, `error_email`. Special: `opted_out` (blacklisted). `emailed` is a valid reset target but not currently set by the pipeline.
+Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, `error_email`. Special: `opted_out` (blacklisted). `emailed` is a valid reset target but not currently set by the pipeline.
 
 ## Module Map
 
 | File | Role |
 |------|------|
-| `src/webseed/pipeline.py` | CLI entry point with subcommands (`search`, `generate`, `test`, `deploy`, `email`, `run` + management). Orchestrates all pipeline steps |
+| `src/webseed/pipeline.py` | CLI entry point with subcommands (`search`, `enrich`, `generate`, `test`, `deploy`, `email`, `run` + management). Orchestrates all pipeline steps |
 | `src/webseed/claude_cli.py` | `run_claude_cli()` subprocess helper + `extract_json_result()` JSON parser. Shared by generator, tester, and emailer |
 | `src/webseed/store.py` | TinyDB data store — open/upsert/query businesses, status updates, blacklist management |
-| `src/webseed/maps.py` | Searches Google Places for businesses without websites, downloads photos. Returns `BusinessData` dataclasses |
+| `src/webseed/maps.py` | Stage 1 search (cheap discovery), Stage 2 enrichment (`enrich_business()`), photo download. Returns `BusinessData` dataclasses |
 | `src/webseed/generator.py` | Builds prompt from template + business data, calls Claude Code CLI, writes single-file `index.html` with inline CSS/JS |
 | `src/webseed/deployer.py` | Deploy to Vercel under a single `webseed` project. Each business gets a unique public deployment URL |
 | `src/webseed/tester.py` | Visual testing via Claude Code CLI + Playwright MCP, HTML fixes, and email screenshot capture (Python Playwright) |
@@ -85,27 +85,31 @@ pip install -e .     # editable install from project root
 ### Pipeline Subcommands
 
 ```bash
-# 1. Search — find businesses on Maps, save to DB
+# 1. Search — find businesses on Maps, save to DB (Stage 1 only, cheap)
 webseed search --location "Milano, Italy" --query "ristorante" --limit 5
 
-# 2. Generate — create HTML sites via Claude Code CLI (place_ids required)
+# 2. Enrich — Place Details + photo download (place_ids required)
+webseed enrich PLACE_ID "nome"         # by place_id or name
+webseed enrich PLACE_ID --only-media   # skip Place Details, only download photos
+
+# 3. Generate — create HTML sites via Claude Code CLI (place_ids required)
 webseed generate PLACE_ID "nome"       # by place_id or name
 webseed generate PLACE_ID --model opus # use a specific model
 
-# 3. Test — code review + fix loop (local, no deploy needed) (place_ids required)
+# 4. Test — code review + fix loop (local, no deploy needed) (place_ids required)
 webseed test PLACE_ID "nome"           # by place_id or name
 webseed test PLACE_ID --playwright     # also run Playwright visual test
 webseed test PLACE_ID --max-fix-iterations 1    # limit fix-retest cycles (default: 3)
 webseed test PLACE_ID --test-model sonnet       # model for testing (default: sonnet)
 
-# 4. Deploy — deploy to Vercel + email screenshot (place_ids required)
+# 5. Deploy — deploy to Vercel + email screenshot (place_ids required)
 webseed deploy PLACE_ID "nome"         # by place_id or name
 
-# 5. Email — generate personalized emails, create Gmail drafts (place_ids required)
+# 6. Email — generate personalized emails, create Gmail drafts (place_ids required)
 webseed email PLACE_ID "nome"          # by place_id or name
 webseed email PLACE_ID --model opus    # use a specific model
 
-# 6. Run — full pipeline (generate → test → deploy → email) for specific businesses
+# 7. Run — full pipeline (enrich → generate → test → deploy → email) for specific businesses
 webseed run PLACE_ID [PLACE_ID...]     # required: one or more identifiers
 webseed run "nome" --no-email          # skip email step
 webseed run PLACE_ID --model opus --test-model sonnet --max-fix-iterations 1
@@ -183,10 +187,19 @@ Defined in `.env` (copy from `.env.example`):
 
 ## Search Behavior
 
-- Maps search paginates through all available results (up to 60 per Google's limit)
-- Synonym queries tried automatically (e.g. "ristorante" also searches "trattoria", "osteria", "pizzeria")
-- Synonym map defined in `QUERY_VARIANTS` dict in `maps.py`
-- Duplicate places deduplicated by `place_id` within run + across runs via DB
+- **Stage 1 only (cheap)**: `search` discovers candidates via Nearby + Text Search on a grid. No Place Details calls — enrichment is a separate step
+- **Pre-scoring**: candidates ranked by `_compute_pre_score()` using Stage 1 fields (rating, review count, business status, category tier). Max 60 points. Filter with `--min-score`
+- **Grid tiling**: `--grid-size 3` (default) divides the area into 9 cells with ~20% overlap for broader coverage
+- **`--limit` counts only new businesses**: businesses already in the DB or blacklist are skipped and don't count toward the limit
+- Duplicate places deduplicated by `place_id` within run; known place_ids skipped
+
+## Enrich Behavior
+
+- **Place Details** ($0.025/call): fetches phone, photos, reviews, opening hours, editorial summary, price level, payment options
+- **Photo download**: downloads up to 3 Google Maps photos to `results/<name>/img/`
+- **Lead scoring**: full `_compute_lead_score()` (0-100) on 8 signals including enrichment-only data (price level, opening hours, review recency, photos)
+- **Website double-check**: if Place Details reveals a website, business is flagged and skipped
+- **`--only-media`**: skip Place Details call, only download photos (useful for re-downloading)
 
 ## Output
 
@@ -222,9 +235,11 @@ Email screenshots (1280x600 above-the-fold) are captured during `deploy` step vi
 
 ## Cost
 
+- Search: ~$0 (Stage 1 only, included in basic Places API quota)
+- Enrich: ~$0.025 per business (Place Details call) + negligible photo download
 - Generation: ~$0.07 per site (via Claude Code CLI)
 - Visual test: ~$0.05-0.10 per test call (Sonnet via Claude Code CLI)
 - Fix: ~$0.03-0.05 per fix call
-- Worst case per business (with 3 test-fix cycles): ~$0.40-0.70
-- With `--no-test`: ~$0.07 per site (generation only)
+- Worst case per business (with 3 test-fix cycles): ~$0.43-0.73
+- With `--no-test`: ~$0.10 per site (enrich + generation only)
 - Email: ~$0.03 per email (via Claude Code CLI)

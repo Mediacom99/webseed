@@ -21,7 +21,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
 ]
 
-from webseed.claude_cli import run_claude_cli
+from webseed.claude_cli import get_timeout, run_claude_cli
 
 if TYPE_CHECKING:
     from webseed.maps import BusinessData
@@ -96,7 +96,7 @@ def generate_email(
         contact_email=contact_email,
     )
 
-    raw_text = run_claude_cli(prompt, system_prompt=EMAIL_SYSTEM_PROMPT, model=model)
+    raw_text = run_claude_cli(prompt, system_prompt=EMAIL_SYSTEM_PROMPT, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_EMAIL", 180))
 
     subject_match = _SUBJECT_RE.search(raw_text)
     body_match = _BODY_RE.search(raw_text)

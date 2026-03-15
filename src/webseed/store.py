@@ -59,6 +59,20 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
             "phone": biz.phone or "",
             "category": biz.category,
             "maps_url": biz.maps_url,
+            "lead_score": biz.lead_score,
+            "price_level": biz.price_level,
+            "business_status": biz.business_status,
+            "primary_type": biz.primary_type,
+            "types": biz.types,
+            "has_opening_hours": biz.has_opening_hours,
+            "opening_hours_summary": biz.opening_hours_summary,
+            "accepts_credit_cards": biz.accepts_credit_cards,
+            "editorial_summary": biz.editorial_summary,
+            "review_texts": biz.review_texts,
+            "has_photos": biz.has_photos,
+            "photo_paths": biz.photo_paths,
+            "photo_refs": biz.photo_refs,
+            "fallback_unsplash_url": biz.fallback_unsplash_url,
             "updated_at": now,
         }
         db.update(cast(dict[str, object], update_fields), Biz.place_id == biz.place_id)  # type: ignore[arg-type]
@@ -76,7 +90,18 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
         "maps_url": biz.maps_url,
         "has_photos": biz.has_photos,
         "photo_paths": biz.photo_paths,
+        "photo_refs": biz.photo_refs,
         "fallback_unsplash_url": biz.fallback_unsplash_url,
+        "lead_score": biz.lead_score,
+        "price_level": biz.price_level,
+        "business_status": biz.business_status,
+        "primary_type": biz.primary_type,
+        "types": biz.types,
+        "has_opening_hours": biz.has_opening_hours,
+        "opening_hours_summary": biz.opening_hours_summary,
+        "accepts_credit_cards": biz.accepts_credit_cards,
+        "editorial_summary": biz.editorial_summary,
+        "review_texts": biz.review_texts,
         "status": "searched",
         "error_detail": "",
         "vercel_url": "",
@@ -106,6 +131,11 @@ def delete_business(db: TinyDB, place_id: str) -> bool:
     Biz = Query()
     removed = db.remove(Biz.place_id == place_id)
     return len(removed) > 0
+
+
+def all_place_ids(db: TinyDB) -> set[str]:
+    """Return the set of all place_ids currently in the DB."""
+    return {str(cast(dict[str, Any], d)["place_id"]) for d in db.all()}
 
 
 def get_businesses_at_status(db: TinyDB, status: str) -> list[dict[str, Any]]:
