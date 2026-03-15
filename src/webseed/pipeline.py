@@ -665,7 +665,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
         try:
             # ── ENRICH ──
-            if status in ("searched", "error_enrich", "error_run"):
+            if status in ("searched", "error_enrich"):
                 api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
                 if not api_key:
                     print("  ⚠️  GOOGLE_MAPS_API_KEY non impostata, skip enrich")
@@ -825,7 +825,15 @@ def cmd_run(args: argparse.Namespace) -> None:
             current_doc = store.find_by_place_id(db, place_id)
             current_status = str(current_doc.get("status", "")) if current_doc else ""
             if not current_status.startswith("error_"):
-                store.update_status(db, place_id, "error_run", {"error_detail": str(e)})
+                _error_map = {
+                    "searched": "error_enrich",
+                    "enriched": "error_generate",
+                    "generated": "error_test",
+                    "tested": "error_deploy",
+                    "deployed": "error_email",
+                }
+                error_status = _error_map.get(status, "error_run")
+                store.update_status(db, place_id, error_status, {"error_detail": str(e)})
 
         print()
 
