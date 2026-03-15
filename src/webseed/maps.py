@@ -109,7 +109,9 @@ class BusinessData:
 def safe_name(name: str) -> str:
     safe = name.lower().replace(" ", "_").replace("/", "_").replace("..", "")[:30]
     safe = safe.strip(".")
-    return safe or "unnamed"
+    if not safe:
+        raise ValueError(f"safe_name produced empty slug for name: {name!r}")
+    return safe
 
 
 # ---------------------------------------------------------------------------
@@ -557,6 +559,7 @@ def enrich_business(
         api_key: Google API key.
         results_dir: Base results directory (e.g. "results/").
         only_media: If True, skip Place Details and only download photos.
+            Website double-check is also skipped (it requires a Place Details call).
         existing_photo_refs: Photo refs already stored in DB (used with only_media).
 
     Returns:
@@ -591,6 +594,7 @@ def enrich_business(
         photo_refs = _extract_photo_refs(details.photos) if details.photos else []
         result["photo_refs"] = photo_refs
     elif not photo_refs:
+        log.info("only_media: skipping Place Details + website check for '%s'", name)
         log.warning("only_media requested for '%s' but no photo refs available, skipping", name)
         return {}
 

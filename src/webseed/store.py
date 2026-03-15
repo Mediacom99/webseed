@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
+
+log = logging.getLogger(__name__)
 
 from webseed.utils import atomic_write
 
@@ -55,7 +58,6 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
     if existing:
         # Update mutable fields only — preserve status, URLs, email tracking
         update_fields: dict[str, Any] = {
-            "error_detail": "",
             "rating": biz.rating,
             "reviews": biz.reviews,
             "address": biz.address,
@@ -120,15 +122,20 @@ def upsert_business(db: TinyDB, biz: BusinessData, run_id: str) -> str:
 
 def update_status(
     db: TinyDB, place_id: str, status: str, extra: dict[str, Any] | None = None
-) -> None:
-    """Update the status (and optional extra fields) for a business."""
+) -> bool:
+    """Update the status (and optional extra fields) for a business.
+
+    Returns True if the business was found and updated, False otherwise.
+    """
     Biz = Query()
     updates: dict[str, Any] = {"status": status, "updated_at": datetime.now().isoformat()}
     if extra:
         updates.update(extra)
     updated = db.update(cast(dict[str, object], updates), Biz.place_id == place_id)  # type: ignore[arg-type]
     if not updated:
-        raise ValueError(f"No business found with place_id '{place_id}'")
+        log.warning("update_status: no business found with place_id '%s'", place_id)
+        return False
+    return True
 
 
 def delete_business(db: TinyDB, place_id: str) -> bool:
