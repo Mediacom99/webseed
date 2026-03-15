@@ -1,5 +1,7 @@
 """Visual testing via Claude Code CLI + Playwright MCP, and email screenshots."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -11,37 +13,31 @@ log = logging.getLogger(__name__)
 from playwright.sync_api import sync_playwright
 
 from webseed.claude_cli import extract_json_result, get_timeout, run_claude_cli
-from webseed.utils import atomic_write
-
+from webseed.ports import FileStoragePort
 
 # ---------------------------------------------------------------------------
 # Code review (Claude Code CLI, text-only — no browser needed)
 # ---------------------------------------------------------------------------
 
 def code_review(
-    site_dir: str,
+    file_storage: FileStoragePort,
+    name_slug: str,
     business_name: str,
     category: str,
     prompt_template: str,
+    system_prompt: str,
     model: str = "sonnet",
 ) -> dict[str, Any]:
     """Run a code review on the local index.html via Claude Code CLI.
 
     Returns ``{"ok": bool, "issues": list, "summary": str, "error": str}``.
     """
-    html_path = os.path.join(site_dir, "index.html")
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
+    html = file_storage.read_file(f"{name_slug}/index.html")
 
     prompt = prompt_template.format(
         name=business_name,
         category=category,
         html=html,
-    )
-
-    system_prompt = (
-        "Sei un QA engineer senior. Analizza il codice HTML e riporta eventuali problemi. "
-        "NON usare strumenti browser o Playwright. Analizza solo il codice sorgente."
     )
 
     try:
@@ -67,8 +63,9 @@ def visual_test(
     url: str,
     business_name: str,
     category: str,
-    screenshots_dir: str,
+    file_storage: FileStoragePort,
     prompt_template: str,
+    system_prompt: str,
     model: str = "sonnet",
 ) -> dict[str, Any]:
     """Run a Claude Code CLI visual test on a deployed preview URL.
@@ -78,17 +75,13 @@ def visual_test(
 
     Returns ``{"ok": bool, "issues": list, "summary": str, "error": str}``.
     """
-    os.makedirs(screenshots_dir, exist_ok=True)
+    # Ensure screenshots dir exists
+    file_storage.screenshots_dir()
 
     prompt = prompt_template.format(
         url=url,
         name=business_name,
         category=category,
-    )
-
-    system_prompt = (
-        "Sei un QA engineer senior. Usa gli strumenti Playwright MCP per "
-        "testare visivamente il sito web. Segui la procedura indicata nel prompt."
     )
 
     try:
@@ -118,17 +111,17 @@ def _strip_code_fences(html: str) -> str:
 
 
 def fix_html(
-    site_dir: str,
+    file_storage: FileStoragePort,
+    name_slug: str,
     issues: list[dict[str, Any]],
     business_name: str,
     category: str,
     prompt_template: str,
+    system_prompt: str,
     model: str = "sonnet",
 ) -> None:
     """Fix index.html based on QA issues using Claude Code CLI. Modifies in place."""
-    html_path = os.path.join(site_dir, "index.html")
-    with open(html_path, "r", encoding="utf-8") as f:
-        current_html = f.read()
+    current_html = file_storage.read_file(f"{name_slug}/index.html")
 
     issues_text = "\n".join(
         f"- [{i['severity']}] {i['description']}" for i in issues
@@ -141,28 +134,23 @@ def fix_html(
         html=current_html,
     )
 
-    system_prompt = (
-        "Sei un web designer esperto. Correggi il codice HTML secondo le istruzioni. "
-        "Rispondi ESCLUSIVAMENTE con il codice HTML corretto."
-    )
-
     raw = run_claude_cli(prompt, system_prompt, model=model, timeout=get_timeout("CLAUDE_TIMEOUT_TEST", 120))
     fixed_html = _strip_code_fences(raw)
 
-    atomic_write(html_path, fixed_html)
+    file_storage.write_file(f"{name_slug}/index.html", fixed_html)
 
 
 # ---------------------------------------------------------------------------
 # Email screenshot (Python Playwright — mechanical task, no AI needed)
 # ---------------------------------------------------------------------------
 
-def capture_email_screenshot(url: str, safe_name: str, screenshots_dir: str) -> str:
+def capture_email_screenshot(url: str, safe_name: str, file_storage: FileStoragePort) -> str:
     """Capture a 1280x600 above-the-fold screenshot for email embedding.
 
     Returns the screenshot path, or "" if capture fails.
     """
     try:
-        os.makedirs(screenshots_dir, exist_ok=True)
+        screenshots_dir = file_storage.screenshots_dir()
         screenshot_path = os.path.join(screenshots_dir, f"{safe_name}_email.png")
 
         with sync_playwright() as p:

@@ -8,7 +8,7 @@ import shutil
 import tempfile
 
 
-def _atomic_write(path: str, content: str) -> None:
+def atomic_write(path: str, content: str) -> None:
     """Write *content* to *path* atomically via temp-file + rename."""
     dir_name = os.path.dirname(path) or "."
     fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
@@ -52,7 +52,7 @@ class LocalFileStorage:
         abs_path = self._abs(relative_path)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
         if isinstance(content, str):
-            _atomic_write(abs_path, content)
+            atomic_write(abs_path, content)
         else:
             with open(abs_path, "wb") as f:
                 f.write(content)

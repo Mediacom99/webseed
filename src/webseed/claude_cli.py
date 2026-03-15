@@ -1,5 +1,7 @@
 """Claude Code CLI helper — run claude in non-interactive mode and parse results."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -7,6 +9,9 @@ import re
 import shutil
 import subprocess
 from typing import Any
+
+from webseed.models import PipelineEvent
+from webseed.ports import EventCallback
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +61,7 @@ def run_claude_cli(
     model: str = "sonnet",
     timeout: int = 180,
     use_tools: bool = False,
+    on_event: EventCallback | None = None,
 ) -> str:
     """Run ``claude --print`` and return the result text.
 
@@ -100,6 +106,15 @@ def run_claude_cli(
         raise RuntimeError(f"Claude CLI failed (exit {result.returncode}): {result.stderr}")
 
     log.debug("Claude CLI returned %d bytes", len(result.stdout))
+
+    if on_event is not None:
+        on_event(PipelineEvent(
+            event_type="cost",
+            job_id="",
+            step="",
+            message=f"Claude CLI call: model={model}, prompt_len={len(prompt)}",
+            data={"model": model, "prompt_length": len(prompt)},
+        ))
 
     try:
         envelope: dict[str, Any] = json.loads(result.stdout)

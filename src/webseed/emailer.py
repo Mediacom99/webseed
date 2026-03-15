@@ -10,7 +10,7 @@ import sys
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -26,13 +26,8 @@ SCOPES = [
 ]
 
 from webseed.claude_cli import get_timeout, run_claude_cli
-from webseed.utils import atomic_write
-
-if TYPE_CHECKING:
-    from webseed.maps import BusinessData
-
-def _sender_name() -> str:
-    return os.getenv("SENDER_NAME", "Edoardo di WebSeed")
+from webseed.models import BusinessData
+from webseed.storage import atomic_write
 
 _SUBJECT_RE = re.compile(r"---SUBJECT---\s*(.+?)\s*---SUBJECT---", re.DOTALL)
 _BODY_RE = re.compile(r"---BODY_HTML---\s*(.+?)\s*---BODY_HTML---", re.DOTALL)
@@ -88,6 +83,7 @@ def ensure_label(service: Any, label_name: str) -> str:
 def generate_email(
     biz: BusinessData, site_url: str, prompt_template: str, system_prompt: str,
     contact_email: str = "",
+    sender_name: str = "Edoardo di WebSeed",
     model: str = "sonnet",
 ) -> dict[str, str]:
     """Call Claude to generate a personalized email. Returns {'subject', 'body_html'}."""
@@ -129,6 +125,8 @@ def create_draft(
     body_html: str,
     screenshot_path: str,
     label_id: str,
+    contact_email: str = "",
+    sender_name: str = "Edoardo di WebSeed",
 ) -> str:
     """Create a Gmail draft with embedded screenshot. Returns the draft ID."""
     if to_email and not _EMAIL_RE.match(to_email):
@@ -136,12 +134,10 @@ def create_draft(
 
     msg = MIMEMultipart("related")
     msg["Subject"] = subject
-    sender_email = os.getenv("CONTACT_EMAIL", "")
-    sender_name = _sender_name()
-    if sender_email:
-        msg["From"] = f"{sender_name} <{sender_email}>"
+    if contact_email:
+        msg["From"] = f"{sender_name} <{contact_email}>"
     else:
-        log.warning("CONTACT_EMAIL not set — From header will have display name only")
+        log.warning("contact_email not set — From header will have display name only")
         msg["From"] = sender_name
     if to_email:
         msg["To"] = to_email

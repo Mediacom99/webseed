@@ -1,11 +1,13 @@
 """Claude Code CLI site generator — produces single-file HTML for a business."""
 
-import os
+from __future__ import annotations
+
 import re
 
 from webseed.claude_cli import get_timeout, run_claude_cli
-from webseed.maps import BusinessData
-from webseed.utils import atomic_write
+from webseed.maps import safe_name
+from webseed.models import BusinessData
+from webseed.ports import FileStoragePort
 
 
 def parse_kv(text: str) -> dict[str, str]:
@@ -35,9 +37,9 @@ def _build_prompt(
             image_instructions = no_photos_config["image_instructions"]
             gallery_instruction = no_photos_config["gallery_instruction"]
     except KeyError as exc:
-        config_name = "site_gen_photos.txt" if biz.has_photos else "site_gen_no_photos.txt"
+        config_name = "site_gen_photos" if biz.has_photos else "site_gen_no_photos"
         raise ValueError(
-            f"Missing key {exc} in {config_name} — check the prompt file has all required key=value pairs"
+            f"Missing key {exc} in {config_name} — check the prompt has all required key=value pairs"
         ) from exc
 
     return prompt_template.format(
@@ -62,7 +64,7 @@ def _strip_code_fences(html: str) -> str:
 
 def generate(
     biz: BusinessData,
-    output_dir: str,
+    file_storage: FileStoragePort,
     prompt_template: str,
     system_prompt: str,
     model: str = "sonnet",
@@ -73,11 +75,8 @@ def generate(
 
     Expects photos to be already downloaded by the ``enrich`` step.
     """
-    from webseed.maps import safe_name
-
     safe = safe_name(biz.name)
-    site_dir = os.path.join(output_dir, safe)
-    os.makedirs(site_dir, exist_ok=True)
+    site_dir = file_storage.site_dir(safe)
 
     prompt = _build_prompt(biz, prompt_template, photos_config or {}, no_photos_config or {})
 
@@ -85,11 +84,7 @@ def generate(
 
     html = _strip_code_fences(raw_text)
 
-    html_path = os.path.join(site_dir, "index.html")
-    atomic_write(html_path, html)
-
-    vercel_json_path = os.path.join(site_dir, "vercel.json")
-    with open(vercel_json_path, "w") as f:
-        f.write('{"version": 2}\n')
+    file_storage.write_file(f"{safe}/index.html", html)
+    file_storage.write_file(f"{safe}/vercel.json", '{"version": 2}\n')
 
     return site_dir
