@@ -665,7 +665,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
         try:
             # ── ENRICH ──
-            if status in ("searched", "error_enrich"):
+            if status in ("searched", "error_enrich", "error_run"):
                 api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
                 if not api_key:
                     print("  ⚠️  GOOGLE_MAPS_API_KEY non impostata, skip enrich")
