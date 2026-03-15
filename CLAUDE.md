@@ -32,6 +32,7 @@ webseed/                          (project root)
         ├── store.py              (TinyDB data store)
         ├── maps.py               (Google Places search, enrichment, photo download)
         ├── generator.py          (Claude Code CLI HTML generation)
+        ├── utils.py              (shared helpers: atomic_write)
         ├── deployer.py           (Vercel deploy under shared 'webseed' project)
         ├── tester.py             (Visual testing via Claude CLI + email screenshots)
         ├── emailer.py            (Gmail draft creation + Claude email gen)
@@ -60,7 +61,8 @@ Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, 
 | File | Role |
 |------|------|
 | `src/webseed/pipeline.py` | CLI entry point with subcommands (`search`, `enrich`, `generate`, `test`, `deploy`, `email`, `run` + management). Orchestrates all pipeline steps |
-| `src/webseed/claude_cli.py` | `run_claude_cli()` subprocess helper + `extract_json_result()` JSON parser. Shared by generator, tester, and emailer |
+| `src/webseed/claude_cli.py` | `run_claude_cli()` subprocess helper + `extract_json_result()` JSON parser + `get_timeout()` env-based timeout reader. Shared by generator, tester, and emailer |
+| `src/webseed/utils.py` | Shared utilities — `atomic_write()` for crash-safe file writes (used by generator and tester) |
 | `src/webseed/store.py` | TinyDB data store — open/upsert/query businesses, status updates, blacklist management |
 | `src/webseed/maps.py` | Stage 1 search (cheap discovery), Stage 2 enrichment (`enrich_business()`), photo download. Returns `BusinessData` dataclasses |
 | `src/webseed/generator.py` | Builds prompt from template + business data, calls Claude Code CLI, writes single-file `index.html` with inline CSS/JS |
@@ -133,6 +135,8 @@ webseed db-delete --all --skip PLACE_ID      # Remove all except specified
 webseed hard-delete PLACE_ID [PLACE_ID...]   # Delete DB + files + Vercel deployment
 webseed hard-delete --blacklist PLACE_ID     # Same but keep entry as blacklisted
 webseed hard-delete -y PLACE_ID              # Skip confirmation
+webseed close PLACE_ID [PLACE_ID...]          # Blacklist + remove Vercel deploy (keep local files)
+webseed close -y PLACE_ID                     # Skip confirmation
 webseed export-csv --output results.csv      # Export DB to CSV
 ```
 
@@ -146,12 +150,18 @@ webseed export-csv --output results.csv      # Export DB to CSV
 
 Defined in `.env` (copy from `.env.example`):
 
-- `GOOGLE_MAPS_API_KEY` — Google Cloud, **legacy Places API** enabled
+- `GOOGLE_MAPS_API_KEY` — Google Cloud, **Places API (New)** enabled
 - `CLAUDE_CLI_PATH` — (optional) path to Claude Code CLI binary; auto-detected if on PATH
 - `VERCEL_CLI_PATH` — (optional) path to Vercel CLI binary; auto-detected if on PATH
 - `GMAIL_CREDENTIALS_FILE` — path to Gmail OAuth credentials JSON (default: `credentials.json`)
+- `GMAIL_TOKEN_FILE` — (optional) path to OAuth token file (default: `token.json`)
+- `GMAIL_LABEL_NAME` — (optional) Gmail label for drafts (default: `webseed-queue`)
 - `CONTACT_EMAIL` — **required for `email` step** — email address shown in email footer for data requests
 - `SENDER_NAME` — (optional) sender display name in emails (default: `Edoardo di WebSeed`)
+- `CLAUDE_TIMEOUT_GENERATE` — (optional) Claude CLI timeout in seconds for generation (default: `120`)
+- `CLAUDE_TIMEOUT_TEST` — (optional) Claude CLI timeout in seconds for testing (default: `120`)
+- `CLAUDE_TIMEOUT_EMAIL` — (optional) Claude CLI timeout in seconds for email gen (default: `180`)
+- `VERCEL_PROJECT_NAME` — (optional) Vercel project name for deployments (default: `webseed`)
 
 ## Auth Notes
 
@@ -219,6 +229,7 @@ Defined in `.env` (copy from `.env.example`):
 - Prompts are loaded via `_load_prompt()` in pipeline.py and passed as parameters to modules
 - Generated HTML strips markdown code fences that Claude may add
 - Error handling: try/except per business in each step, failures logged but don't stop the batch
+- **Pyright strict mode** enabled (`pyproject.toml`) — all code must pass strict type checking
 - Legacy Places API field names: use `photo` not `photos`, `type` not `types`
 - **Identifier resolution**: most commands accept place_ids or partial business names (case-insensitive substring match via `store.resolve_identifier()`). Ambiguous matches prompt the user to be more specific
 

@@ -6,6 +6,8 @@ import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
+from webseed.utils import atomic_write
+
 from tinydb import TinyDB, Query
 
 if TYPE_CHECKING:
@@ -186,6 +188,5 @@ def remove_from_blacklist(filepath: str, place_id: str) -> bool:
     new_lines = [l for l in lines if l.strip() != place_id]
     if len(new_lines) == len(lines):
         return False
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.writelines(new_lines)
+    atomic_write(filepath, "".join(new_lines))
     return True
