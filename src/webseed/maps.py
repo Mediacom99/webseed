@@ -21,38 +21,6 @@ log = logging.getLogger(__name__)
 MAX_PHOTOS = 3
 _MAX_DETAIL_CALLS = 100  # cost safeguard
 
-CATEGORY_UNSPLASH: dict[str, str] = {
-    "restaurant": "italian-restaurant",
-    "italian_restaurant": "italian-restaurant",
-    "pizza_restaurant": "italian-pizza",
-    "food": "italian-food",
-    "bar": "coffee-bar",
-    "cafe": "cafe-coffee",
-    "coffee_shop": "cafe-coffee",
-    "bakery": "bakery-bread",
-    "hair_salon": "hair-salon",
-    "hair_care": "hair-salon",
-    "beauty_salon": "beauty-salon",
-    "barber_shop": "barber-shop",
-    "gym": "gym-fitness",
-    "fitness_center": "gym-fitness",
-    "store": "shop-retail",
-    "clothing_store": "clothing-store",
-    "lodging": "hotel-room",
-    "hotel": "hotel-room",
-    "bed_and_breakfast": "hotel-room",
-    "health": "medical-clinic",
-    "dentist": "dental-clinic",
-    "dental_clinic": "dental-clinic",
-    "car_repair": "auto-mechanic",
-    "veterinary_care": "veterinary-clinic",
-    "florist": "flower-shop",
-    "pharmacy": "pharmacy",
-    "spa": "spa-wellness",
-    "ice_cream_shop": "gelato-italy",
-}
-DEFAULT_UNSPLASH = "local-business-italy"
-
 # ---------------------------------------------------------------------------
 # Query-to-type expansion map (English Google type identifiers)
 # ---------------------------------------------------------------------------
@@ -121,7 +89,7 @@ class BusinessData:
     has_photos: bool
     photo_paths: list[str]
     fallback_unsplash_url: str
-    photo_refs: list[str] = field(default_factory=list)  # Places API photo resource names for deferred download
+    photo_refs: list[str] = field(default_factory=lambda: list[str]())  # Places API photo resource names for deferred download
     # New fields for lead scoring & enrichment (all defaulted for backward compat)
     lead_score: int = 0
     price_level: Optional[str] = None
@@ -536,7 +504,7 @@ def enrich_business(
         if a website was discovered during enrichment (caller should handle).
     """
     result: dict[str, Any] = {}
-    photo_refs: list[str] = existing_photo_refs or []
+    photo_refs: list[str] = existing_photo_refs if existing_photo_refs is not None else []
 
     # ── Place Details (unless only_media with existing refs) ──
     if not only_media or not photo_refs:
@@ -576,9 +544,8 @@ def enrich_business(
         result["photo_paths"] = []
         result["has_photos"] = False
 
-    # Unsplash fallback
-    unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
-    result["fallback_unsplash_url"] = f"https://source.unsplash.com/1200x600/?{unsplash_query}"
+    # Unsplash fallback removed — source.unsplash.com is dead (410 Gone since 2024)
+    result["fallback_unsplash_url"] = ""
 
     return result
 
@@ -713,7 +680,6 @@ def search(
 
         primary_type = p.primary_type or ""
         category = primary_type or "establishment"
-        unsplash_query = CATEGORY_UNSPLASH.get(category, DEFAULT_UNSPLASH)
 
         biz = BusinessData(
             name=_display_name(p),
@@ -727,7 +693,7 @@ def search(
             has_photos=False,
             photo_paths=[],
             photo_refs=[],
-            fallback_unsplash_url=f"https://source.unsplash.com/1200x600/?{unsplash_query}",
+            fallback_unsplash_url="",
             lead_score=pre_score,
             business_status=p.business_status.name if p.business_status else "OPERATIONAL",
             primary_type=primary_type or None,

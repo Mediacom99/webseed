@@ -91,6 +91,7 @@ def run_claude_cli(
         capture_output=True,
         text=True,
         timeout=timeout,
+        encoding="utf-8",
     )
 
     if result.returncode != 0:
@@ -100,8 +101,21 @@ def run_claude_cli(
 
     log.debug("Claude CLI returned %d bytes", len(result.stdout))
 
-    envelope: dict[str, str] = json.loads(result.stdout)
-    return envelope["result"]
+    try:
+        envelope: dict[str, Any] = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Failed to parse Claude CLI JSON output: {exc}. "
+            f"Raw stdout (first 500): {result.stdout[:500]}"
+        ) from exc
+    result_text = envelope.get("result")
+    if result_text is None:
+        raise RuntimeError(
+            f"Claude CLI response missing 'result' key. "
+            f"Keys found: {list(envelope.keys())}. "
+            f"Raw output (first 500): {result.stdout[:500]}"
+        )
+    return str(result_text)
 
 
 _JSON_RESULT_RE = re.compile(
