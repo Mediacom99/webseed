@@ -30,14 +30,11 @@ def code_review(
     with open(html_path, "r", encoding="utf-8") as f:
         html = f.read()
 
-    # Escape braces in business data so .format() doesn't choke on
-    # literal { } in names/categories/HTML (templates use {{}} for literals).
-    safe_vars = {
-        "name": business_name.replace("{", "{{").replace("}", "}}"),
-        "category": category.replace("{", "{{").replace("}", "}}"),
-        "html": html.replace("{", "{{").replace("}", "}}"),
-    }
-    prompt = prompt_template.format(**safe_vars)
+    prompt = prompt_template.format(
+        name=business_name,
+        category=category,
+        html=html,
+    )
 
     system_prompt = (
         "Sei un QA engineer senior. Analizza il codice HTML e riporta eventuali problemi. "
@@ -135,13 +132,12 @@ def fix_html(
         f"- [{i['severity']}] {i['description']}" for i in issues
     )
 
-    safe_vars = {
-        "name": business_name.replace("{", "{{").replace("}", "}}"),
-        "category": category.replace("{", "{{").replace("}", "}}"),
-        "issues": issues_text.replace("{", "{{").replace("}", "}}"),
-        "html": current_html.replace("{", "{{").replace("}", "}}"),
-    }
-    prompt = prompt_template.format(**safe_vars)
+    prompt = prompt_template.format(
+        name=business_name,
+        category=category,
+        issues=issues_text,
+        html=current_html,
+    )
 
     system_prompt = (
         "Sei un web designer esperto. Correggi il codice HTML secondo le istruzioni. "
