@@ -478,22 +478,22 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/pages/BusinessesPage.tsx` — add CSV export button in header
 
 **Acceptance criteria:**
-- [ ] Checkbox column allows selecting individual rows and "select all"
-- [ ] Bulk action toolbar appears when rows are selected, showing count
-- [ ] "Hard Delete" bulk action shows confirmation, calls `POST /api/businesses/hard-delete`
-- [ ] "Close" bulk action calls `POST /api/businesses/close`
-- [ ] CSV export button triggers file download via `GET /api/businesses/export/csv`
-- [ ] Selection clears after bulk action completes
+- [x] Checkbox column allows selecting individual rows and "select all"
+- [x] Bulk action toolbar appears when rows are selected, showing count
+- [x] "Hard Delete" bulk action shows confirmation, calls `POST /api/businesses/hard-delete`
+- [x] "Close" bulk action calls `POST /api/businesses/close`
+- [x] CSV export button triggers file download via `GET /api/businesses/export/csv`
+- [x] Selection clears after bulk action completes
 
 **Testing:**
-- [ ] Checkbox selection/deselection works correctly
-- [ ] Bulk delete calls API with selected place_ids
-- [ ] CSV export triggers download
-- [ ] Confirmation dialog prevents accidental bulk delete
+- [x] Checkbox selection/deselection works correctly
+- [x] Bulk delete calls API with selected place_ids
+- [x] CSV export triggers download
+- [x] Confirmation dialog prevents accidental bulk delete
 
 **Commit:** `feat(businesses): add bulk actions and CSV export`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 

@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Trash2, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -17,11 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/businesses/StatusBadge";
 import {
   useListBusinessesBusinessesGet,
   useGetStatsBusinessesStatsGet,
+  useHardDeleteBusinessesHardDeletePost,
+  useCloseBusinessesBusinessesClosePost,
 } from "@/api/endpoints/businesses/businesses";
 import { useWebSocketStore } from "@/stores/websocket";
 
@@ -41,12 +56,15 @@ export default function BusinessTable() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
   const { data: businessesData, refetch } = useListBusinessesBusinessesGet(
     statusFilter !== "all" ? { status: statusFilter } : undefined,
   );
   const { data: statsData } = useGetStatsBusinessesStatsGet();
+  const hardDelete = useHardDeleteBusinessesHardDeletePost();
+  const closeBiz = useCloseBusinessesBusinessesClosePost();
 
   const events = useWebSocketStore((s) => s.events);
   const lastStepDone = events.findLast((e) => e.event_type === "step_done");
@@ -97,6 +115,74 @@ export default function BusinessTable() {
     }
   };
 
+  const toggleSelect = (placeId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(placeId)) next.delete(placeId);
+      else next.add(placeId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sorted.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sorted.map((b) => b.place_id)));
+    }
+  };
+
+  const handleHardDelete = () => {
+    hardDelete.mutate(
+      { data: { place_ids: Array.from(selectedIds) } },
+      {
+        onSuccess: () => {
+          toast.success(`Deleted ${selectedIds.size} businesses`);
+          setSelectedIds(new Set());
+          void refetch();
+        },
+        onError: () => toast.error("Failed to delete businesses"),
+      },
+    );
+  };
+
+  const handleClose = () => {
+    closeBiz.mutate(
+      { data: { place_ids: Array.from(selectedIds) } },
+      {
+        onSuccess: () => {
+          toast.success(`Closed ${selectedIds.size} businesses`);
+          setSelectedIds(new Set());
+          void refetch();
+        },
+        onError: () => toast.error("Failed to close businesses"),
+      },
+    );
+  };
+
+  const handleCsvExport = () => {
+    const apiKey = localStorage.getItem("webseed-api-key");
+    const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api";
+    const url = `${baseUrl}/businesses/export/csv`;
+
+    const link = document.createElement("a");
+    link.href = url;
+
+    // For CSV download, we need to handle the API key
+    fetch(url, {
+      headers: apiKey ? { "X-API-Key": apiKey } : {},
+    })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        link.href = blobUrl;
+        link.download = "businesses.csv";
+        link.click();
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch(() => toast.error("Failed to export CSV"));
+  };
+
   const stats = statsData?.data;
 
   return (
@@ -117,6 +203,10 @@ export default function BusinessTable() {
           </SelectContent>
         </Select>
 
+        <Button variant="outline" size="sm" onClick={handleCsvExport}>
+          Export CSV
+        </Button>
+
         {stats && (
           <div className="flex flex-wrap gap-1">
             {Object.entries(stats).map(([status, count]) => (
@@ -133,6 +223,39 @@ export default function BusinessTable() {
         )}
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted p-2">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selected
+          </span>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="mr-1 h-3 w-3" /> Hard Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {selectedIds.size} businesses?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove the selected businesses from the
+                  database.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleHardDelete}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="outline" size="sm" onClick={handleClose}>
+            <XCircle className="mr-1 h-3 w-3" /> Close
+          </Button>
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <p className="py-8 text-center text-muted-foreground">
           No businesses found
@@ -141,6 +264,15 @@ export default function BusinessTable() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={
+                    selectedIds.size === sorted.length && sorted.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>
                 <Button
                   variant="ghost"
@@ -178,9 +310,21 @@ export default function BusinessTable() {
               <TableRow
                 key={biz.place_id}
                 className="cursor-pointer"
-                onClick={() => navigate(`/businesses/${biz.place_id}`)}
+                data-selected={selectedIds.has(biz.place_id)}
               >
-                <TableCell className="font-medium">{biz.name}</TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selectedIds.has(biz.place_id)}
+                    onCheckedChange={() => toggleSelect(biz.place_id)}
+                    aria-label={`Select ${biz.name}`}
+                  />
+                </TableCell>
+                <TableCell
+                  className="font-medium"
+                  onClick={() => navigate(`/businesses/${biz.place_id}`)}
+                >
+                  {biz.name}
+                </TableCell>
                 <TableCell className="font-mono text-xs">
                   {biz.place_id.slice(0, 12)}...
                 </TableCell>

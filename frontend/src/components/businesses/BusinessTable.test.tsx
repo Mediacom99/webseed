@@ -16,6 +16,14 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("@/api/endpoints/businesses/businesses", () => ({
+  useHardDeleteBusinessesHardDeletePost: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useCloseBusinessesBusinessesClosePost: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
   useListBusinessesBusinessesGet: () => ({
     data: {
       data: [
