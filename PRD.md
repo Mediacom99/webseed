@@ -216,21 +216,21 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/scroll-area.tsx` — shadcn ScrollArea
 
 **Acceptance criteria:**
-- [ ] Stats cards display counts for each pipeline status from API
-- [ ] Stats auto-refresh on short interval (30s stale time)
-- [ ] Recent activity shows last 50 WebSocket events with timestamp and message
-- [ ] Active jobs section shows running jobs or "No active jobs" when idle
-- [ ] Stats cards refetch when a `step_done` WebSocket event arrives
+- [x] Stats cards display counts for each pipeline status from API
+- [x] Stats auto-refresh on short interval (30s stale time)
+- [x] Recent activity shows last 50 WebSocket events with timestamp and message
+- [x] Active jobs section shows running jobs or "No active jobs" when idle
+- [x] Stats cards refetch when a `step_done` WebSocket event arrives
 
 **Testing:**
-- [ ] StatsCards renders all status counts from mock API data
-- [ ] RecentActivity renders event list from mock WS store
-- [ ] Dashboard page composes all three sections without errors
-- [ ] Empty state shows when no events exist
+- [x] StatsCards renders all status counts from mock API data
+- [x] RecentActivity renders event list from mock WS store
+- [x] Dashboard page composes all three sections without errors
+- [x] Empty state shows when no events exist
 
 **Commit:** `feat(dashboard): add stats cards, recent activity, and active jobs`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
