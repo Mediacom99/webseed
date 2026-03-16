@@ -72,10 +72,10 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 
 ## HARD STOP — Checkpoint: Project foundation
 **Verify before continuing:**
-- [ ] `cd frontend && npm run dev` starts without errors
-- [ ] Open http://localhost:5173 — health check page loads
-- [ ] Page shows stats from backend (backend must be running on :8000)
-- [ ] `npm run type-check` and `npm run build` both pass
+- [x] `cd frontend && npm run dev` starts without errors
+- [x] Open http://localhost:5173 — health check page loads
+- [x] Page shows stats from backend (backend must be running on :8000)
+- [x] `npm run type-check` and `npm run build` both pass
 
 ---
 
@@ -97,21 +97,21 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/label.tsx` — shadcn Label
 
 **Acceptance criteria:**
-- [ ] Login page renders at `/login` with API key input and submit button
-- [ ] Entering a valid key and submitting redirects to `/`
-- [ ] Entering an invalid key shows an error message (toast or inline)
-- [ ] API key persists in localStorage across page refreshes
-- [ ] Auth store `clearApiKey()` removes key from localStorage
+- [x] Login page renders at `/login` with API key input and submit button
+- [x] Entering a valid key and submitting redirects to `/`
+- [x] Entering an invalid key shows an error message (toast or inline)
+- [x] API key persists in localStorage across page refreshes
+- [x] Auth store `clearApiKey()` removes key from localStorage
 
 **Testing:**
-- [ ] Auth store unit test: set/get/clear key from localStorage
-- [ ] Login page renders without errors
-- [ ] Invalid key shows error state
-- [ ] Valid key triggers redirect
+- [x] Auth store unit test: set/get/clear key from localStorage
+- [x] Login page renders without errors
+- [x] Invalid key shows error state
+- [x] Valid key triggers redirect
 
 **Commit:** `feat(auth): add login page with API key validation`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
