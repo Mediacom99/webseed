@@ -321,21 +321,21 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/table.tsx` — shadcn Table
 
 **Acceptance criteria:**
-- [ ] Activity feed shows all WS events for the active job, newest at bottom
-- [ ] Feed auto-scrolls to latest event as new ones arrive
-- [ ] Business progress table lists businesses discovered by search, updates status per WS events
-- [ ] StatusBadge shows correct color for each status (searched=blue, enriched=purple, generated=green, etc.)
-- [ ] Events are color-coded: step_done=green, step_error=red, progress=gray
+- [x] Activity feed shows all WS events for the active job, newest at bottom
+- [x] Feed auto-scrolls to latest event as new ones arrive
+- [x] Business progress table lists businesses discovered by search, updates status per WS events
+- [x] StatusBadge shows correct color for each status (searched=blue, enriched=purple, generated=green, etc.)
+- [x] Events are color-coded: step_done=green, step_error=red, progress=gray
 
 **Testing:**
-- [ ] LiveActivityFeed renders events from mock store
-- [ ] BusinessProgressTable renders rows and updates on new events
-- [ ] StatusBadge renders correct variant for each status
-- [ ] Empty states show when no events/businesses
+- [x] LiveActivityFeed renders events from mock store
+- [x] BusinessProgressTable renders rows and updates on new events
+- [x] StatusBadge renders correct variant for each status
+- [x] Empty states show when no events/businesses
 
 **Commit:** `feat(pipeline): add live activity feed and business progress table`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 

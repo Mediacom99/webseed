@@ -7,6 +7,8 @@ import {
 } from "@/components/ui/card";
 import PipelineFlow from "@/components/pipeline/PipelineFlow";
 import SearchForm from "@/components/pipeline/SearchForm";
+import BusinessProgressTable from "@/components/pipeline/BusinessProgressTable";
+import LiveActivityFeed from "@/components/pipeline/LiveActivityFeed";
 import { usePipelineStatus } from "@/hooks/usePipelineStatus";
 
 export default function PipelinePage() {
@@ -26,6 +28,9 @@ export default function PipelinePage() {
           <SearchForm onJobStarted={setActiveJobId} />
         </CardContent>
       </Card>
+
+      <BusinessProgressTable jobId={activeJobId} />
+      <LiveActivityFeed jobId={activeJobId} />
     </div>
   );
 }

@@ -7,3 +7,6 @@ class ResizeObserverMock {
   disconnect() {}
 }
 globalThis.ResizeObserver = ResizeObserverMock;
+
+// Polyfill scrollIntoView for jsdom
+Element.prototype.scrollIntoView = function () {};
