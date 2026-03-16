@@ -444,22 +444,22 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/alert-dialog.tsx` — shadcn AlertDialog (for destructive confirmations)
 
 **Acceptance criteria:**
-- [ ] Detail page loads business data by place_id from route params
-- [ ] All business fields render (name, address, phone, rating, lead_score, status, etc.)
-- [ ] "Change Status" dropdown allows setting any valid status
-- [ ] Blacklist toggle adds/removes `opted_out` status with optimistic update
-- [ ] Delete button shows confirmation dialog, then removes business
-- [ ] 404 state shows when business not found
+- [x] Detail page loads business data by place_id from route params
+- [x] All business fields render (name, address, phone, rating, lead_score, status, etc.)
+- [x] "Change Status" dropdown allows setting any valid status
+- [x] Blacklist toggle adds/removes `opted_out` status with optimistic update
+- [x] Delete button shows confirmation dialog, then removes business
+- [x] 404 state shows when business not found
 
 **Testing:**
-- [ ] BusinessDetail renders all fields from mock data
-- [ ] Status change calls PATCH endpoint with correct payload
-- [ ] Blacklist toggle calls correct POST/DELETE endpoint
-- [ ] Delete confirmation dialog appears before deletion
+- [x] BusinessDetail renders all fields from mock data
+- [x] Status change calls PATCH endpoint with correct payload
+- [x] Blacklist toggle calls correct POST/DELETE endpoint
+- [x] Delete confirmation dialog appears before deletion
 
 **Commit:** `feat(businesses): add business detail page with status and blacklist management`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
