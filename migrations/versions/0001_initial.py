@@ -32,8 +32,8 @@ def upgrade() -> None:
         sa.Column("category", sa.String(100), server_default=""),
         sa.Column("maps_url", sa.Text(), server_default=""),
         sa.Column("has_photos", sa.Boolean(), server_default="false"),
-        sa.Column("photo_paths", JSONB(), server_default="'[]'"),
-        sa.Column("photo_refs", JSONB(), server_default="'[]'"),
+        sa.Column("photo_paths", JSONB(), server_default=sa.text("'[]'")),
+        sa.Column("photo_refs", JSONB(), server_default=sa.text("'[]'")),
         sa.Column("fallback_unsplash_url", sa.Text(), server_default=""),
         sa.Column("lead_score", sa.Integer(), server_default="0"),
         sa.Column("price_level", sa.String(50), nullable=True),
@@ -51,7 +51,7 @@ def upgrade() -> None:
         sa.Column("site_screenshot_path", sa.Text(), server_default=""),
         sa.Column("email_sent_at", sa.String(50), server_default=""),
         sa.Column("test_iterations", sa.Integer(), server_default="0"),
-        sa.Column("test_issues", JSONB(), server_default="'[]'"),
+        sa.Column("test_issues", JSONB(), server_default=sa.text("'[]'")),
         sa.Column("run_id", sa.String(64), server_default=""),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("NOW()")),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("NOW()")),
@@ -77,7 +77,7 @@ def upgrade() -> None:
         sa.Column("event_type", sa.String(32), nullable=False),
         sa.Column("step", sa.String(32), nullable=True),
         sa.Column("message", sa.Text(), server_default=""),
-        sa.Column("data", JSONB(), server_default="'{}'"),
+        sa.Column("data", JSONB(), server_default=sa.text("'{}'")),
         sa.Column("timestamp", sa.DateTime(timezone=True), server_default=sa.text("NOW()")),
     )
     op.create_index("idx_event_log_job_id", "event_log", ["job_id"])

@@ -53,6 +53,7 @@ def create_app(database_url: str, results_dir: str = "results") -> FastAPI:
     async def websocket_endpoint(websocket: WebSocket, api_key: str | None = None) -> None:  # pyright: ignore[reportUnusedFunction]
         expected = os.environ.get("WEBSEED_API_KEY", "")
         if expected and api_key != expected:
+            await websocket.accept()
             await websocket.close(code=4001, reason="Invalid API key")
             return
         await manager.connect(websocket)

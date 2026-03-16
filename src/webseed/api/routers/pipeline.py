@@ -71,7 +71,7 @@ class JobResponse(BaseModel):
 # ── Endpoints ──
 
 @router.post("/search", response_model=JobResponse)
-def pipeline_search(
+async def pipeline_search(
     body: SearchRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -79,7 +79,7 @@ def pipeline_search(
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
@@ -92,7 +92,7 @@ def pipeline_search(
 
 
 @router.post("/enrich", response_model=JobResponse)
-def pipeline_enrich(
+async def pipeline_enrich(
     body: EnrichRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -101,7 +101,7 @@ def pipeline_enrich(
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
@@ -113,7 +113,7 @@ def pipeline_enrich(
 
 
 @router.post("/generate", response_model=JobResponse)
-def pipeline_generate(
+async def pipeline_generate(
     body: GenerateRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -121,7 +121,7 @@ def pipeline_generate(
     _key: str = Depends(require_api_key),
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
@@ -133,7 +133,7 @@ def pipeline_generate(
 
 
 @router.post("/test", response_model=JobResponse)
-def pipeline_test(
+async def pipeline_test(
     body: TestRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -141,7 +141,7 @@ def pipeline_test(
     _key: str = Depends(require_api_key),
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
@@ -154,7 +154,7 @@ def pipeline_test(
 
 
 @router.post("/deploy", response_model=JobResponse)
-def pipeline_deploy(
+async def pipeline_deploy(
     body: DeployRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -162,7 +162,7 @@ def pipeline_deploy(
     _key: str = Depends(require_api_key),
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
@@ -174,7 +174,7 @@ def pipeline_deploy(
 
 
 @router.post("/email", response_model=JobResponse)
-def pipeline_email(
+async def pipeline_email(
     body: EmailRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -182,7 +182,7 @@ def pipeline_email(
     _key: str = Depends(require_api_key),
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
@@ -194,7 +194,7 @@ def pipeline_email(
 
 
 @router.post("/run", response_model=JobResponse)
-def pipeline_run(
+async def pipeline_run(
     body: RunRequest,
     bg: BackgroundTasks,
     store: PersistencePort = Depends(get_store),
@@ -202,7 +202,7 @@ def pipeline_run(
     _key: str = Depends(require_api_key),
 ) -> JobResponse:
     job_id = str(uuid.uuid4())
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     on_event = make_event_callback(loop, store)
 
     bg.add_task(
