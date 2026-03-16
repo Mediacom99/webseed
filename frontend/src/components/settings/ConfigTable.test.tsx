@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import ConfigTable from "./ConfigTable";
 
 vi.mock("@/api/endpoints/settings/settings", () => ({
@@ -34,18 +35,20 @@ function renderTable() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ConfigTable />
+      <TooltipProvider>
+        <ConfigTable />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
 
 describe("ConfigTable", () => {
-  it("renders config settings from mock data", () => {
+  it("renders config settings with human-readable labels", () => {
     renderTable();
 
-    expect(screen.getByText("config.contact_email")).toBeInTheDocument();
-    expect(screen.getByText("config.sender_name")).toBeInTheDocument();
-    expect(screen.getByText("Contact email")).toBeInTheDocument();
+    // Human-readable labels (config. prefix stripped, underscores replaced)
+    expect(screen.getByText("Contact Email")).toBeInTheDocument();
+    expect(screen.getByText("Sender Name")).toBeInTheDocument();
   });
 
   it("renders editable input fields", () => {

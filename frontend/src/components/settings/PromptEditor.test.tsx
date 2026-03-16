@@ -8,12 +8,12 @@ vi.mock("@/api/endpoints/settings/settings", () => ({
     data: {
       data: [
         {
-          key: "prompt.generate",
+          key: "prompt.site_gen",
           value: "Generate a site for {name}",
           description: "Site generation prompt",
         },
         {
-          key: "prompt.email",
+          key: "prompt.email_gen",
           value: "Write an email for {name}",
           description: "Email prompt",
         },
@@ -40,10 +40,12 @@ function renderEditor() {
 }
 
 describe("PromptEditor", () => {
-  it("renders prompt settings from mock data", () => {
+  it("renders grouped prompt settings", () => {
     renderEditor();
 
-    expect(screen.getByText("prompt.generate")).toBeInTheDocument();
-    expect(screen.getByText("prompt.email")).toBeInTheDocument();
+    expect(screen.getByText("Site Generation")).toBeInTheDocument();
+    expect(screen.getByText("Email Generation")).toBeInTheDocument();
+    expect(screen.getByText("prompt.site_gen")).toBeInTheDocument();
+    expect(screen.getByText("prompt.email_gen")).toBeInTheDocument();
   });
 });

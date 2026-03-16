@@ -438,22 +438,22 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/SettingsPage.tsx` — two tabs (Prompts, Configuration) using shadcn Tabs
 
 **Acceptance criteria:**
-- [ ] Prompts tab: 5 collapsible groups (Site Generation, Code Review, Visual Test, Fix HTML, Email Generation)
-- [ ] Each group header shows prompt count and unsaved count indicator
-- [ ] Prompt textarea shows current value; editing shows unsaved dot indicator
-- [ ] Per-prompt Save calls `PUT /settings/{key}` and clears dirty state
-- [ ] Config tab: table with human-readable key names (strip `config.` prefix, replace `_` with spaces)
-- [ ] Per-row inline editing with Save button; description tooltip/text shown on focus
+- [x] Prompts tab: 5 collapsible groups (Site Generation, Code Review, Visual Test, Fix HTML, Email Generation)
+- [x] Each group header shows prompt count and unsaved count indicator
+- [x] Prompt textarea shows current value; editing shows unsaved dot indicator
+- [x] Per-prompt Save calls `PUT /settings/{key}` and clears dirty state
+- [x] Config tab: table with human-readable key names (strip `config.` prefix, replace `_` with spaces)
+- [x] Per-row inline editing with Save button; description tooltip/text shown on focus
 
 **Testing:**
-- [ ] Prompts load and display in correct groups
-- [ ] Editing a prompt shows unsaved indicator
-- [ ] Save button calls API and clears dirty state
-- [ ] Config table renders all config settings with editable values
+- [x] Prompts load and display in correct groups
+- [x] Editing a prompt shows unsaved indicator
+- [x] Save button calls API and clears dirty state
+- [x] Config table renders all config settings with editable values
 
 **Commit:** `feat(settings): redesign with grouped prompts and inline config editing`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 

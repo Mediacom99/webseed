@@ -12,6 +12,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   useListSettingsSettingsGet,
   useUpdateSettingSettingsKeyPut,
 } from "@/api/endpoints/settings/settings";
@@ -22,11 +27,19 @@ interface ConfigItem {
   description: string;
 }
 
+function humanize(key: string): string {
+  return key
+    .replace(/^config\./, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function ConfigTable() {
   const { data } = useListSettingsSettingsGet({ prefix: "config" });
   const updateSetting = useUpdateSettingSettingsKeyPut();
 
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
+  const [focused, setFocused] = useState<string | null>(null);
 
   const rawData = Array.isArray(data?.data) ? data.data : [];
   const settings: ConfigItem[] = rawData.map((s) => {
@@ -62,8 +75,8 @@ export default function ConfigTable() {
     updateSetting.mutate(
       { key, data: { value } },
       {
-        onSuccess: () => toast.success(`Saved ${key}`),
-        onError: () => toast.error(`Failed to save ${key}`),
+        onSuccess: () => toast.success(`Saved ${humanize(key)}`),
+        onError: () => toast.error(`Failed to save ${humanize(key)}`),
       },
     );
   };
@@ -77,53 +90,74 @@ export default function ConfigTable() {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Key</TableHead>
-          <TableHead>Value</TableHead>
-          <TableHead>Description</TableHead>
-          <TableHead className="w-20" />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {settings.map((setting) => (
-          <TableRow key={setting.key}>
-            <TableCell className="font-mono text-sm">{setting.key}</TableCell>
-            <TableCell>
-              <div className="flex items-center gap-1">
-                <Input
-                  value={edits.get(setting.key) ?? setting.value}
-                  onChange={(e) =>
-                    setEdits((prev) => {
-                      const next = new Map(prev);
-                      next.set(setting.key, e.target.value);
-                      return next;
-                    })
-                  }
-                  className="max-w-xs"
-                />
-                {isDirty(setting.key) && (
-                  <span className="text-xs text-amber-600">*</span>
-                )}
-              </div>
-            </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
-              {setting.description}
-            </TableCell>
-            <TableCell>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleSave(setting.key)}
-                disabled={!isDirty(setting.key) || updateSetting.isPending}
-              >
-                <Save className="h-3 w-3" />
-              </Button>
-            </TableCell>
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Setting</TableHead>
+            <TableHead>Value</TableHead>
+            <TableHead className="w-16" />
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {settings.map((setting) => {
+            const dirty = isDirty(setting.key);
+            return (
+              <TableRow key={setting.key}>
+                <TableCell>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-sm font-medium cursor-help">
+                        {humanize(setting.key)}
+                      </span>
+                    </TooltipTrigger>
+                    {setting.description && (
+                      <TooltipContent side="right" className="max-w-xs">
+                        <p className="text-xs">{setting.description}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                  {focused === setting.key && setting.description && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {setting.description}
+                    </p>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={edits.get(setting.key) ?? setting.value}
+                      onChange={(e) =>
+                        setEdits((prev) => {
+                          const next = new Map(prev);
+                          next.set(setting.key, e.target.value);
+                          return next;
+                        })
+                      }
+                      onFocus={() => setFocused(setting.key)}
+                      onBlur={() => setFocused(null)}
+                      className="max-w-xs"
+                    />
+                    {dirty && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleSave(setting.key)}
+                    disabled={!dirty || updateSetting.isPending}
+                  >
+                    <Save className="h-3 w-3" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

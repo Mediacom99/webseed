@@ -9,12 +9,12 @@ export default function SettingsPage() {
       <Tabs defaultValue="prompts">
         <TabsList>
           <TabsTrigger value="prompts">Prompts</TabsTrigger>
-          <TabsTrigger value="config">Config</TabsTrigger>
+          <TabsTrigger value="config">Configuration</TabsTrigger>
         </TabsList>
-        <TabsContent value="prompts">
+        <TabsContent value="prompts" className="mt-4">
           <PromptEditor />
         </TabsContent>
-        <TabsContent value="config">
+        <TabsContent value="config" className="mt-4">
           <ConfigTable />
         </TabsContent>
       </Tabs>
