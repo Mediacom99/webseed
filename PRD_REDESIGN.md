@@ -246,22 +246,22 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/SearchPage.tsx` — integrate results table + action bar below the search form; toast after enrichment with link to `/businesses?status=enriched`
 
 **Acceptance criteria:**
-- [ ] Results table appears after search job completes (refetch on WS `step_done` for search)
-- [ ] Table columns: checkbox, Name, Category, Rating (sortable), Reviews (sortable), Address, Pre-score (sortable)
-- [ ] Select All / Deselect All toggle works
-- [ ] "Enrich Selected" calls `POST /pipeline/enrich` with selected `place_ids`; disabled when 0 selected
-- [ ] "Blacklist Selected" shows confirmation dialog before calling blacklist endpoint for each selected
-- [ ] Toast notification after enrichment: "N businesses sent to enrich — View in Businesses" with link
+- [x] Results table appears after search job completes (refetch on WS `step_done` for search)
+- [x] Table columns: checkbox, Name, Category, Rating (sortable), Reviews (sortable), Address, Pre-score (sortable)
+- [x] Select All / Deselect All toggle works
+- [x] "Enrich Selected" calls `POST /pipeline/enrich` with selected `place_ids`; disabled when 0 selected
+- [x] "Blacklist Selected" shows confirmation dialog before calling blacklist endpoint for each selected
+- [x] Toast notification after enrichment: "N businesses sent to enrich — View in Businesses" with link
 
 **Testing:**
-- [ ] Results table renders business rows from API
-- [ ] Checkbox selection and Select All work correctly
-- [ ] Enrich button triggers API call with correct place_ids
-- [ ] Blacklist shows confirmation dialog before executing
+- [x] Results table renders business rows from API
+- [x] Checkbox selection and Select All work correctly
+- [x] Enrich button triggers API call with correct place_ids
+- [x] Blacklist shows confirmation dialog before executing
 
 **Commit:** `feat(search): add results table with enrich and blacklist actions`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
