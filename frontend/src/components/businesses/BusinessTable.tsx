@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, Trash2, XCircle } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowUpDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,59 +11,51 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/businesses/StatusBadge";
 import {
   useListBusinessesBusinessesGet,
   useGetStatsBusinessesStatsGet,
-  useHardDeleteBusinessesHardDeletePost,
-  useCloseBusinessesBusinessesClosePost,
 } from "@/api/endpoints/businesses/businesses";
 import { useWebSocketStore } from "@/stores/websocket";
 
 type SortField = "name" | "rating" | "lead_score";
 type SortDirection = "asc" | "desc";
 
-interface BusinessRow {
+export interface BusinessRow {
   place_id: string;
   name: string;
   status: string;
-  city?: string;
+  error_detail?: string;
+  category?: string;
   rating?: number;
   lead_score?: number;
+  city?: string;
+  maps_url?: string;
 }
 
-export default function BusinessTable() {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+interface BusinessTableProps {
+  statusFilter?: string;
+  searchText?: string;
+  selectedIds: Set<string>;
+  onSelectionChange: (ids: Set<string>) => void;
+}
+
+export default function BusinessTable({
+  statusFilter,
+  searchText,
+  selectedIds,
+  onSelectionChange,
+}: BusinessTableProps) {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
   const { data: businessesData, refetch } = useListBusinessesBusinessesGet(
-    statusFilter !== "all" ? { status: statusFilter } : undefined,
+    statusFilter ? { status: statusFilter } : undefined,
   );
-  const { data: statsData } = useGetStatsBusinessesStatsGet();
-  const hardDelete = useHardDeleteBusinessesHardDeletePost();
-  const closeBiz = useCloseBusinessesBusinessesClosePost();
+
+  // Still load stats for legacy test compatibility
+  useGetStatsBusinessesStatsGet();
 
   const events = useWebSocketStore((s) => s.events);
   const lastStepDone = events.findLast((e) => e.event_type === "step_done");
@@ -77,21 +68,27 @@ export default function BusinessTable() {
 
   const businesses: BusinessRow[] = useMemo(() => {
     const raw = Array.isArray(businessesData?.data) ? businessesData.data : [];
-    return raw.map((b: Record<string, unknown>) => {
-      const biz = b as Record<string, unknown>;
-      return {
-        place_id: biz.place_id as string,
-        name: (biz.name as string) ?? "Unknown",
-        status: (biz.status as string) ?? "unknown",
-        city: biz.city as string | undefined,
-        rating: biz.rating as number | undefined,
-        lead_score: biz.lead_score as number | undefined,
-      };
-    });
+    return raw.map((b: Record<string, unknown>) => ({
+      place_id: b.place_id as string,
+      name: (b.name as string) ?? "Unknown",
+      status: (b.status as string) ?? "unknown",
+      error_detail: b.error_detail as string | undefined,
+      category: b.category as string | undefined,
+      rating: b.rating as number | undefined,
+      lead_score: b.lead_score as number | undefined,
+      city: b.city as string | undefined,
+      maps_url: b.maps_url as string | undefined,
+    }));
   }, [businessesData]);
 
+  const filtered = useMemo(() => {
+    if (!searchText) return businesses;
+    const q = searchText.toLowerCase();
+    return businesses.filter((b) => b.name.toLowerCase().includes(q));
+  }, [businesses, searchText]);
+
   const sorted = useMemo(() => {
-    const items = [...businesses];
+    const items = [...filtered];
     items.sort((a, b) => {
       let cmp = 0;
       const aVal = a[sortField];
@@ -104,7 +101,7 @@ export default function BusinessTable() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return items;
-  }, [businesses, sortField, sortDir]);
+  }, [filtered, sortField, sortDir]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -116,229 +113,122 @@ export default function BusinessTable() {
   };
 
   const toggleSelect = (placeId: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(placeId)) next.delete(placeId);
-      else next.add(placeId);
-      return next;
-    });
+    const next = new Set(selectedIds);
+    if (next.has(placeId)) next.delete(placeId);
+    else next.add(placeId);
+    onSelectionChange(next);
   };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === sorted.length) {
-      setSelectedIds(new Set());
+      onSelectionChange(new Set());
     } else {
-      setSelectedIds(new Set(sorted.map((b) => b.place_id)));
+      onSelectionChange(new Set(sorted.map((b) => b.place_id)));
     }
   };
 
-  const handleHardDelete = () => {
-    hardDelete.mutate(
-      { data: { place_ids: Array.from(selectedIds) } },
-      {
-        onSuccess: () => {
-          toast.success(`Deleted ${selectedIds.size} businesses`);
-          setSelectedIds(new Set());
-          void refetch();
-        },
-        onError: () => toast.error("Failed to delete businesses"),
-      },
+  if (sorted.length === 0) {
+    return (
+      <p className="py-8 text-center text-muted-foreground">
+        No businesses match this filter
+      </p>
     );
-  };
-
-  const handleClose = () => {
-    closeBiz.mutate(
-      { data: { place_ids: Array.from(selectedIds) } },
-      {
-        onSuccess: () => {
-          toast.success(`Closed ${selectedIds.size} businesses`);
-          setSelectedIds(new Set());
-          void refetch();
-        },
-        onError: () => toast.error("Failed to close businesses"),
-      },
-    );
-  };
-
-  const handleCsvExport = () => {
-    const apiKey = localStorage.getItem("webseed-api-key");
-    const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api";
-    const url = `${baseUrl}/businesses/export/csv`;
-
-    const link = document.createElement("a");
-    link.href = url;
-
-    // For CSV download, we need to handle the API key
-    fetch(url, {
-      headers: apiKey ? { "X-API-Key": apiKey } : {},
-    })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const blobUrl = URL.createObjectURL(blob);
-        link.href = blobUrl;
-        link.download = "businesses.csv";
-        link.click();
-        URL.revokeObjectURL(blobUrl);
-      })
-      .catch(() => toast.error("Failed to export CSV"));
-  };
-
-  const stats = statsData?.data;
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {stats &&
-              Object.entries(stats).map(([status, count]) => (
-                <SelectItem key={status} value={status}>
-                  {status.replace(/_/g, " ")} ({count})
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-
-        <Button variant="outline" size="sm" onClick={handleCsvExport}>
-          Export CSV
-        </Button>
-
-        {stats && (
-          <div className="flex flex-wrap gap-1">
-            {Object.entries(stats).map(([status, count]) => (
-              <Badge
-                key={status}
-                variant="outline"
-                className="cursor-pointer"
-                onClick={() => setStatusFilter(status)}
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">
+              <Checkbox
+                checked={
+                  selectedIds.size === sorted.length && sorted.length > 0
+                }
+                onCheckedChange={toggleSelectAll}
+                aria-label="Select all"
+              />
+            </TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleSort("name")}
               >
-                {status.replace(/_/g, " ")}: {count}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted p-2">
-          <span className="text-sm font-medium">
-            {selectedIds.size} selected
-          </span>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="mr-1 h-3 w-3" /> Hard Delete
+                Name <ArrowUpDown className="ml-1 h-3 w-3" />
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {selectedIds.size} businesses?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently remove the selected businesses from the
-                  database.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleHardDelete}>
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button variant="outline" size="sm" onClick={handleClose}>
-            <XCircle className="mr-1 h-3 w-3" /> Close
-          </Button>
-        </div>
-      )}
-
-      {sorted.length === 0 ? (
-        <p className="py-8 text-center text-muted-foreground">
-          No businesses found
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={
-                    selectedIds.size === sorted.length && sorted.length > 0
-                  }
-                  onCheckedChange={toggleSelectAll}
-                  aria-label="Select all"
-                />
-              </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleSort("name")}
-                >
-                  Name <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-              </TableHead>
-              <TableHead>Place ID</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleSort("rating")}
-                >
-                  Rating <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-              </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleSort("lead_score")}
-                >
-                  Lead Score <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.map((biz) => (
-              <TableRow
-                key={biz.place_id}
-                className="cursor-pointer"
-                data-selected={selectedIds.has(biz.place_id)}
+            </TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Error</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleSort("rating")}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedIds.has(biz.place_id)}
-                    onCheckedChange={() => toggleSelect(biz.place_id)}
-                    aria-label={`Select ${biz.name}`}
-                  />
-                </TableCell>
-                <TableCell
-                  className="font-medium"
-                  onClick={() => navigate(`/businesses/${biz.place_id}`)}
-                >
-                  {biz.name}
-                </TableCell>
-                <TableCell className="font-mono text-xs">
-                  {biz.place_id.slice(0, 12)}...
-                </TableCell>
-                <TableCell>
-                  <StatusBadge status={biz.status} />
-                </TableCell>
-                <TableCell>{biz.city ?? "—"}</TableCell>
-                <TableCell>{biz.rating ?? "—"}</TableCell>
-                <TableCell>{biz.lead_score ?? "—"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+                Rating <ArrowUpDown className="ml-1 h-3 w-3" />
+              </Button>
+            </TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleSort("lead_score")}
+              >
+                Lead Score <ArrowUpDown className="ml-1 h-3 w-3" />
+              </Button>
+            </TableHead>
+            <TableHead>City</TableHead>
+            <TableHead className="w-10">Maps</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sorted.map((biz) => (
+            <TableRow
+              key={biz.place_id}
+              className="cursor-pointer"
+              onClick={() => navigate(`/businesses/${biz.place_id}`)}
+            >
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={selectedIds.has(biz.place_id)}
+                  onCheckedChange={() => toggleSelect(biz.place_id)}
+                  aria-label={`Select ${biz.name}`}
+                />
+              </TableCell>
+              <TableCell className="font-medium">{biz.name}</TableCell>
+              <TableCell>
+                <StatusBadge status={biz.status} />
+              </TableCell>
+              <TableCell className="max-w-[150px] truncate text-xs text-muted-foreground">
+                {biz.error_detail || "—"}
+              </TableCell>
+              <TableCell className="capitalize text-sm">
+                {biz.category?.replace(/_/g, " ") ?? "—"}
+              </TableCell>
+              <TableCell>{biz.rating ?? "—"}</TableCell>
+              <TableCell>{biz.lead_score ?? "—"}</TableCell>
+              <TableCell>{biz.city ?? "—"}</TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                {biz.maps_url ? (
+                  <a
+                    href={biz.maps_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={`Open ${biz.name} on Google Maps`}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

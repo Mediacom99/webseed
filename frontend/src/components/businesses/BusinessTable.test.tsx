@@ -16,14 +16,6 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("@/api/endpoints/businesses/businesses", () => ({
-  useHardDeleteBusinessesHardDeletePost: () => ({
-    mutate: vi.fn(),
-    isPending: false,
-  }),
-  useCloseBusinessesBusinessesClosePost: () => ({
-    mutate: vi.fn(),
-    isPending: false,
-  }),
   useListBusinessesBusinessesGet: () => ({
     data: {
       data: [
@@ -58,14 +50,17 @@ vi.mock("@/api/endpoints/businesses/businesses", () => ({
   }),
 }));
 
-function renderTable() {
+function renderTable(selectedIds = new Set<string>(), onSelectionChange = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <BusinessTable />
+        <BusinessTable
+          selectedIds={selectedIds}
+          onSelectionChange={onSelectionChange}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );

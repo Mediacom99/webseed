@@ -282,23 +282,23 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/BusinessesPage.tsx` — add text search input, status filter chips, table; URL param sync for `?status=`
 
 **Acceptance criteria:**
-- [ ] Filter chips show counts from `GET /businesses/stats`; clicking a chip filters the table
-- [ ] "Errors" chip groups all `error_*` statuses; "Emailed" groups `emailed` + `email_queued`
-- [ ] Zero-count chips are hidden (except "All")
-- [ ] URL query param `?status=errors` works (for links from Dashboard)
-- [ ] Text search filters table rows by business name (client-side, real-time)
-- [ ] Table rows are clickable → navigate to `/businesses/:placeId`
-- [ ] Data refetches on WebSocket `step_done` events
+- [x] Filter chips show counts from `GET /businesses/stats`; clicking a chip filters the table
+- [x] "Errors" chip groups all `error_*` statuses; "Emailed" groups `emailed` + `email_queued`
+- [x] Zero-count chips are hidden (except "All")
+- [x] URL query param `?status=errors` works (for links from Dashboard)
+- [x] Text search filters table rows by business name (client-side, real-time)
+- [x] Table rows are clickable → navigate to `/businesses/:placeId`
+- [x] Data refetches on WebSocket `step_done` events
 
 **Testing:**
-- [ ] StatusFilterChips renders chips with correct counts
-- [ ] Clicking a chip updates the displayed businesses
-- [ ] Text search filters by name
-- [ ] Row click navigates to detail page
+- [x] StatusFilterChips renders chips with correct counts
+- [x] Clicking a chip updates the displayed businesses
+- [x] Text search filters by name
+- [x] Row click navigates to detail page
 
 **Commit:** `feat(businesses): add status filter chips, text search, and enhanced table`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
