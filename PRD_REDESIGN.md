@@ -177,21 +177,21 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/DashboardPage.tsx` — two-column grid below funnel (Active Jobs left, Stats right)
 
 **Acceptance criteria:**
-- [ ] Active Jobs panel lists running jobs from WebSocket store
-- [ ] Each job shows job ID, current step, and animated pulse
-- [ ] Empty state: "No active jobs" with muted text
-- [ ] Stats panel shows: total businesses, with sites (deployed+emailed count and %), errors (count and %), blacklisted count
-- [ ] Two-column layout below the funnel (responsive: stacks on mobile)
+- [x] Active Jobs panel lists running jobs from WebSocket store
+- [x] Each job shows job ID, current step, and animated pulse
+- [x] Empty state: "No active jobs" with muted text
+- [x] Stats panel shows: total businesses, with sites (deployed+emailed count and %), errors (count and %), blacklisted count
+- [x] Two-column layout below the funnel (responsive: stacks on mobile)
 
 **Testing:**
-- [ ] ActiveJobs renders "No active jobs" when store is empty
-- [ ] ActiveJobs renders job entries when store has active jobs
-- [ ] StatsCards computes percentages correctly from stats data
-- [ ] Layout is two-column on desktop, stacked on mobile
+- [x] ActiveJobs renders "No active jobs" when store is empty
+- [x] ActiveJobs renders job entries when store has active jobs
+- [x] StatsCards computes percentages correctly from stats data
+- [x] Layout is two-column on desktop, stacked on mobile
 
 **Commit:** `feat(dashboard): add active jobs and stats panels`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 

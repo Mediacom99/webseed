@@ -26,9 +26,12 @@ export default function ActiveJobs() {
                 key={job.jobId}
                 className="flex items-center justify-between rounded-md border p-2"
               >
-                <span className="font-mono text-sm">
-                  {job.jobId.slice(0, 8)}...
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="font-mono text-sm">
+                    {job.jobId.slice(0, 8)}...
+                  </span>
+                </div>
                 {job.currentStep && (
                   <Badge variant="secondary">{job.currentStep}</Badge>
                 )}

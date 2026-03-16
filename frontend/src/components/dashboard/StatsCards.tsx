@@ -5,27 +5,25 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetStatsBusinessesStatsGet } from "@/api/endpoints/businesses/businesses";
 import { useWebSocketStore } from "@/stores/websocket";
 
-const STATUS_COLORS: Record<string, string> = {
-  searched: "bg-blue-100 text-blue-800",
-  enriched: "bg-purple-100 text-purple-800",
-  generated: "bg-green-100 text-green-800",
-  tested: "bg-teal-100 text-teal-800",
-  deployed: "bg-emerald-100 text-emerald-800",
-  email_queued: "bg-amber-100 text-amber-800",
-  emailed: "bg-indigo-100 text-indigo-800",
-  error_enrich: "bg-red-100 text-red-800",
-  error_generate: "bg-red-100 text-red-800",
-  error_test: "bg-red-100 text-red-800",
-  error_deploy: "bg-red-100 text-red-800",
-  error_email: "bg-red-100 text-red-800",
-  error_run: "bg-red-100 text-red-800",
-  opted_out: "bg-gray-100 text-gray-800",
-};
+const ERROR_STATUSES = [
+  "error_enrich",
+  "error_generate",
+  "error_test",
+  "error_deploy",
+  "error_email",
+  "error_run",
+];
+
+const SITE_STATUSES = ["deployed", "email_queued", "emailed"];
+
+function pct(count: number, total: number): string {
+  if (total === 0) return "0%";
+  return `${Math.round((count / total) * 100)}%`;
+}
 
 export default function StatsCards() {
   const { data, isLoading, refetch } = useGetStatsBusinessesStatsGet({
@@ -33,7 +31,6 @@ export default function StatsCards() {
   });
   const events = useWebSocketStore((s) => s.events);
 
-  // Refetch when step_done events arrive
   const lastStepDone = events.findLast((e) => e.event_type === "step_done");
   useEffect(() => {
     if (lastStepDone) {
@@ -41,47 +38,68 @@ export default function StatsCards() {
     }
   }, [lastStepDone, refetch]);
 
-  const stats = data?.data;
-
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <Skeleton className="h-4 w-20" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-12" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-4 w-20" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-6 w-full" />
+          ))}
+        </CardContent>
+      </Card>
     );
   }
 
-  if (!stats) return null;
+  const stats = data?.data ?? {};
+  const total = Object.values(stats).reduce((sum, n) => sum + n, 0);
+  const withSites = SITE_STATUSES.reduce(
+    (sum, key) => sum + (stats[key] ?? 0),
+    0,
+  );
+  const errors = ERROR_STATUSES.reduce(
+    (sum, key) => sum + (stats[key] ?? 0),
+    0,
+  );
+  const blacklisted = stats["opted_out"] ?? 0;
 
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-      {Object.entries(stats).map(([status, count]) => (
-        <Card key={status}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium capitalize">
-              {status.replace(/_/g, " ")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <span className="text-2xl font-bold">{count}</span>
-            <Badge
-              variant="secondary"
-              className={STATUS_COLORS[status] ?? ""}
-            >
-              {status}
-            </Badge>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Stats</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            Total businesses
+          </span>
+          <span className="font-semibold">{total}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">With sites</span>
+          <span className="font-semibold">
+            {withSites}{" "}
+            <span className="text-xs text-muted-foreground">
+              ({pct(withSites, total)})
+            </span>
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Errors</span>
+          <span className="font-semibold text-red-600 dark:text-red-400">
+            {errors}{" "}
+            <span className="text-xs text-muted-foreground">
+              ({pct(errors, total)})
+            </span>
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Blacklisted</span>
+          <span className="font-semibold">{blacklisted}</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

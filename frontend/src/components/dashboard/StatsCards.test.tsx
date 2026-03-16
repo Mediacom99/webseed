@@ -6,7 +6,15 @@ import StatsCards from "./StatsCards";
 vi.mock("@/api/endpoints/businesses/businesses", () => ({
   useGetStatsBusinessesStatsGet: () => ({
     data: {
-      data: { searched: 5, enriched: 3, generated: 1 },
+      data: {
+        searched: 5,
+        enriched: 3,
+        generated: 1,
+        deployed: 2,
+        emailed: 1,
+        error_generate: 1,
+        opted_out: 2,
+      },
       status: 200,
       headers: new Headers(),
     },
@@ -24,15 +32,15 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe("StatsCards", () => {
-  it("renders all status counts from API data", () => {
+  it("renders computed stats from API data", () => {
     renderWithQuery(<StatsCards />);
 
-    expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-    // Status text appears in both card title and badge
-    expect(screen.getAllByText("searched")).toHaveLength(2);
-    expect(screen.getAllByText("enriched")).toHaveLength(2);
-    expect(screen.getAllByText("generated")).toHaveLength(2);
+    // Total: 5+3+1+2+1+1+2 = 15
+    expect(screen.getByText("15")).toBeInTheDocument();
+    // With sites: deployed(2) + emailed(1) = 3
+    expect(screen.getByText("Total businesses")).toBeInTheDocument();
+    expect(screen.getByText("With sites")).toBeInTheDocument();
+    expect(screen.getByText("Errors")).toBeInTheDocument();
+    expect(screen.getByText("Blacklisted")).toBeInTheDocument();
   });
 });
