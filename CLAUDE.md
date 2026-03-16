@@ -16,6 +16,17 @@ REST API backend that finds Italian local businesses without websites on Google 
 - **Playwright** (Python) — above-the-fold email screenshots only
 - **Gmail API** — OAuth-based draft creation with label management
 
+### Frontend (planned — all in `frontend/`, not yet implemented)
+- **React 19 + Vite** — SPA, TypeScript strict mode
+- **shadcn/ui** (Radix + Tailwind CSS) — copy-paste components, full ownership
+- **Orval** — auto-generates TanStack Query hooks + Zod schemas from `openapi.json`
+- **TanStack Query** — server state (caching, refetch, mutations)
+- **Zustand** — client state (WebSocket connection, auth, active jobs)
+- **React Flow (xyflow) + Framer Motion** — pipeline visualization with animated nodes/edges
+- **react-hook-form + Zod** — forms with validation
+- **Vitest + Testing Library** — unit tests
+- **Playwright** — E2E tests
+
 ## Architecture
 
 Three-layer clean architecture:
@@ -85,11 +96,11 @@ Search (Maps) → Enrich (Place Details + Photos) → Generate (Claude) → Test
 ```
 
 Each step is independent and resumable. State is tracked per-business in PostgreSQL with status progression:
-`searched` → `enriched` → `generated` → `tested` → `deployed` → `email_queued`
+`searched` → `enriched` → `generated` → `tested` → `deployed` → `email_queued` → `emailed`
 
-Running statuses: `running_enrich`, `running_generate`, `running_test`, `running_deploy`, `running_email` (set at step start, reset on crash recovery).
+Running statuses: `running_enrich`, `running_generate`, `running_test`, `running_deploy`, `running_email` (set at step start, reset on crash recovery). Search runs synchronously — no `running_search` status.
 
-Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, `error_email`. Special: `opted_out` (blacklisted).
+Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, `error_email`, `error_run`. Special: `opted_out` (blacklisted).
 
 ## Module Map
 
@@ -129,6 +140,15 @@ alembic upgrade head                # run migrations (creates tables + seeds pro
 
 ```bash
 python -m webseed                   # starts uvicorn on 0.0.0.0:8000
+```
+
+### Tests
+
+```bash
+pytest tests/                       # run all tests
+pytest tests/test_api.py            # API route tests
+pytest tests/test_services.py       # pipeline orchestration tests
+pytest tests/test_store.py          # persistence layer tests
 ```
 
 
@@ -225,6 +245,7 @@ Crash recovery: on server startup, all `running_*` statuses are reset to corresp
 
 ## Code Conventions
 
+### Backend
 - Language: Python, snake_case functions, UPPERCASE constants
 - Package uses absolute imports (`from webseed.models import BusinessData`)
 - UI text and prompt templates are in Italian
@@ -236,6 +257,16 @@ Crash recovery: on server startup, all `running_*` statuses are reset to corresp
 - Error handling: try/except per business in each step, failures logged but don't stop the batch
 - **Pyright strict mode** enabled (`pyproject.toml`) — all code must pass strict type checking
 - Legacy Places API field names: use `photo` not `photos`, `type` not `types`
+
+### Frontend (planned)
+- **All frontend code lives in `frontend/`** — backend (`src/`) and frontend are strictly separated in the monorepo. Never put frontend files outside `frontend/`
+- TypeScript strict mode — all code must pass `tsc --noEmit`
+- PascalCase files for components (`BusinessTable.tsx`), camelCase for utils/stores/hooks (`websocket.ts`, `useWebSocketEvents.ts`)
+- No barrel exports — import directly from file, not via `index.ts` re-exports
+- Pages are thin — compose feature components, minimal logic in page files
+- Orval-generated files in `frontend/src/api/` — do not edit manually, regenerate with `npm run generate-api`
+- `typescript-lsp` and `pyright-lsp` plugins enabled for type checking
+- Use Context7 plugin to look up latest library docs (React, shadcn, Orval, TanStack Query, etc.) when needed
 
 ## Search Behavior
 

@@ -124,7 +124,7 @@ export default function SearchForm({ onJobStarted }: SearchFormProps) {
             type="number"
             min={1}
             max={100}
-            {...register("limit")}
+            {...register("limit", { valueAsNumber: true })}
           />
         </div>
         <div className="space-y-2">
@@ -134,7 +134,7 @@ export default function SearchForm({ onJobStarted }: SearchFormProps) {
             type="number"
             min={1}
             max={10}
-            {...register("grid_size")}
+            {...register("grid_size", { valueAsNumber: true })}
           />
         </div>
       </div>

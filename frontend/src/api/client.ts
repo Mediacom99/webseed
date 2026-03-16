@@ -26,7 +26,10 @@ export const customFetch = async <T>(
     throw new ApiError(response.status, error);
   }
 
-  return response.json() as Promise<T>;
+  const data = await response.json();
+
+  // Wrap response to match Orval's expected { data, status, headers } shape
+  return { data, status: response.status, headers: response.headers } as T;
 };
 
 export class ApiError extends Error {
