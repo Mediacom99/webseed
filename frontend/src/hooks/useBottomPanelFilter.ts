@@ -3,7 +3,7 @@ import { useLocation, useParams } from "react-router-dom";
 import { useWebSocketStore } from "@/stores/websocket";
 import type { PipelineEvent } from "@/types";
 
-export type TabId = "all" | `job:${string}` | "this-business";
+export type TabId = "all" | `job:${string}`;
 
 export interface PanelTab {
   id: TabId;
@@ -45,35 +45,37 @@ export function useBottomPanelFilter() {
     }));
   }, [events, activeJobs]);
 
-  // "This Business" tab only on detail page
-  const isDetailPage = location.pathname.startsWith("/businesses/") && params.placeId;
+  const isDetailPage =
+    location.pathname.startsWith("/businesses/") && !!params.placeId;
   const placeId = params.placeId;
 
   const tabs = useMemo<PanelTab[]>(() => {
     const result: PanelTab[] = [{ id: "all", label: "All", status: null }];
     result.push(...jobTabs);
-    if (isDetailPage) {
-      result.push({ id: "this-business", label: "This Business", status: null });
-    }
     return result;
-  }, [jobTabs, isDetailPage]);
+  }, [jobTabs]);
 
   // Auto-selected tab based on route
+  // On business detail page: switch to the most recent job tab that has events for this business
   const autoTab = useMemo<TabId>(() => {
-    if (isDetailPage) return "this-business";
+    if (isDetailPage && placeId) {
+      // Find the most recent job that has events for this business
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i].place_id === placeId) {
+          return `job:${events[i].job_id}`;
+        }
+      }
+    }
     if (location.pathname === "/search" && jobTabs.length > 0) {
       // Most recent search job = last job tab
       return jobTabs[jobTabs.length - 1].id;
     }
     return "all";
-  }, [location.pathname, isDetailPage, jobTabs]);
+  }, [location.pathname, isDetailPage, placeId, events, jobTabs]);
 
   // Filter function
   function filterEvents(selectedTab: TabId): PipelineEvent[] {
     if (selectedTab === "all") return events;
-    if (selectedTab === "this-business" && placeId) {
-      return events.filter((e) => e.place_id === placeId);
-    }
     if (selectedTab.startsWith("job:")) {
       const jobId = selectedTab.slice(4);
       return events.filter((e) => e.job_id === jobId);

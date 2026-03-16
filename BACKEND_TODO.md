@@ -41,3 +41,29 @@
   - Emails sent this week (count of `emailed` status with recent `email_sent_at`)
 - Could extend existing `/businesses/stats` or create a new `/businesses/analytics` endpoint
 - PRIORITY: Low — nice-to-have for dashboard, not blocking
+
+## Stats count mismatch with businesses list
+- Dashboard stats show `50 total` (from `GET /businesses/stats`), but `GET /businesses` only returns 25 rows
+- The stats endpoint counts all DB rows, but the list endpoint may be deduplicating or filtering differently
+- Frontend shows "All (50)" in the status filter chips but only renders 25 table rows — confusing UX
+- Investigate: either stats is over-counting or list is under-returning. Align both endpoints.
+- PRIORITY: Medium — causes user confusion on the Businesses page
+
+## GET /events endpoint for event history
+- Current: Events are logged to `event_log` table but there's no REST endpoint to query them
+- Needed: `GET /events?limit=200` (most recent first) so frontend can hydrate the log console on page refresh
+- Optional filters: `?job_id=`, `?place_id=`, `?since=<timestamp>`
+- The `event_log` table already has indexes on `job_id` and `timestamp`
+- Frontend currently uses `sessionStorage` as a stopgap — this endpoint would be the proper solution
+- PRIORITY: Medium — sessionStorage works for same-tab refresh but events are lost on new tabs
+
+## Include business name in WebSocket events
+- Current: `PipelineEvent` carries `place_id` but not business `name`
+- Needed: Add `place_name` (or `business_name`) field to WebSocket events so the frontend log console can show human-readable tab labels instead of job ID hashes
+- The name is already available in the `BusinessRecord` / `BusinessRow` at each pipeline step
+- PRIORITY: Medium — frontend currently has to do separate lookups to resolve place_id → name
+
+## Price level raw enum in API response
+- Business detail returns raw Google enum like `PRICE_LEVEL_MODERATE` for price_level field
+- Frontend displays it verbatim — should either be mapped on the backend to a human-friendly value, or documented so frontend can map it
+- PRIORITY: Low — cosmetic issue

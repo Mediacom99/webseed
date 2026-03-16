@@ -80,6 +80,15 @@ export default function BottomPanel() {
 
   const { tabs, autoTab, filterEvents } = useBottomPanelFilter();
 
+  // Reset manual tab when auto-tab changes (e.g. route navigation)
+  const prevAutoTab = useRef(autoTab);
+  useEffect(() => {
+    if (prevAutoTab.current !== autoTab) {
+      setManualTab(null);
+      prevAutoTab.current = autoTab;
+    }
+  }, [autoTab]);
+
   // Use manual tab if set, otherwise auto
   const activeTab = manualTab ?? autoTab;
   const filteredEvents = filterEvents(activeTab);
@@ -232,7 +241,10 @@ export default function BottomPanel() {
               variant="ghost"
               size="sm"
               className="h-6 shrink-0 gap-1 px-2 text-xs"
-              onClick={clearEvents}
+              onClick={() => {
+                setManualTab(null);
+                clearEvents();
+              }}
               aria-label="Clear events"
             >
               <Trash2 className="h-3 w-3" />
