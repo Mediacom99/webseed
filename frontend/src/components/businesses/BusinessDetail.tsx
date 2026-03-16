@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import StatusBadge from "./StatusBadge";
 import PipelineGraph from "./PipelineGraph";
+import InfoCards from "./InfoCards";
 import {
   useBlacklistAddBusinessesPlaceIdBlacklistPost,
   useBlacklistRemoveBusinessesPlaceIdBlacklistDelete,
@@ -276,6 +277,9 @@ export default function BusinessDetail({
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {/* Info cards */}
+      <InfoCards business={business} onRefresh={onRefresh} />
     </div>
   );
 }

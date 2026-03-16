@@ -22,6 +22,10 @@ vi.mock("@/api/endpoints/businesses/businesses", () => ({
     mutate: mockDeleteMutate,
     isPending: false,
   }),
+  useUpdateStatusBusinessesPlaceIdStatusPatch: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock("@/api/endpoints/pipeline/pipeline", () => ({
@@ -85,7 +89,8 @@ describe("BusinessDetail", () => {
 
     expect(screen.getByText("Ristorante Roma")).toBeInTheDocument();
     expect(screen.getByText("searched")).toBeInTheDocument();
-    expect(screen.getByText("4.5")).toBeInTheDocument();
+    // 4.5 appears in header and scores card
+    expect(screen.getAllByText("4.5").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows blacklist button", () => {

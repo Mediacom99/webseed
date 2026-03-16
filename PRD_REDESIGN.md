@@ -399,24 +399,24 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/components/businesses/BusinessDetail.tsx` — integrate info cards below pipeline graph with progressive disclosure (cards only render when data present)
 
 **Acceptance criteria:**
-- [ ] Contact card: address, phone (tel: link), email (mailto: link), Maps (external link)
-- [ ] Scores card: lead score as "N/100" with progress bar, rating with stars + review count, price level
-- [ ] Business Info card: types as badges, business status, opening hours, credit cards, editorial summary (only shows after enrichment)
-- [ ] Reviews card: quoted review texts (only shows when `review_texts` non-empty)
-- [ ] Site & Deployment card: Vercel URL link, email sent timestamp (only shows when `vercel_url` present)
-- [ ] Testing card: iteration count, collapsible issues list (only shows when `test_iterations > 0`)
-- [ ] Error card: failed-at status, error detail, status reset dropdown with `PATCH /businesses/{place_id}/status` (only shows when `error_detail` present)
-- [ ] Metadata card: created_at, updated_at formatted timestamps
+- [x] Contact card: address, phone (tel: link), email (mailto: link), Maps (external link)
+- [x] Scores card: lead score as "N/100" with progress bar, rating with stars + review count, price level
+- [x] Business Info card: types as badges, business status, opening hours, credit cards, editorial summary (only shows after enrichment)
+- [x] Reviews card: quoted review texts (only shows when `review_texts` non-empty)
+- [x] Site & Deployment card: Vercel URL link, email sent timestamp (only shows when `vercel_url` present)
+- [x] Testing card: iteration count, collapsible issues list (only shows when `test_iterations > 0`)
+- [x] Error card: failed-at status, error detail, status reset dropdown with `PATCH /businesses/{place_id}/status` (only shows when `error_detail` present)
+- [x] Metadata card: created_at, updated_at formatted timestamps
 
 **Testing:**
-- [ ] Cards render only when relevant data is present (progressive disclosure)
-- [ ] Contact card links work (tel, mailto, external)
-- [ ] Error card reset dropdown calls status update API
-- [ ] Searched-only business shows minimal cards; fully deployed business shows all
+- [x] Cards render only when relevant data is present (progressive disclosure)
+- [x] Contact card links work (tel, mailto, external)
+- [x] Error card reset dropdown calls status update API
+- [x] Searched-only business shows minimal cards; fully deployed business shows all
 
 **Commit:** `feat(business-detail): add info cards with progressive disclosure`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
