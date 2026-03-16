@@ -211,22 +211,22 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/components/search/TypesMultiSelect.tsx` — grouped multi-select dropdown with chips for selected types (Food & Drink, Beauty & Wellness, Health, Automotive, Accommodation, Fitness, Retail, Services)
 
 **Acceptance criteria:**
-- [ ] Location and Query are required text inputs
-- [ ] Types dropdown is a grouped multi-select showing 8 categories with types
-- [ ] Selected types display as removable chips
-- [ ] Advanced options section is collapsed by default, expands on click
-- [ ] Advanced options: Limit (default 10), Min Score (default 0), Grid Size (default 3)
-- [ ] Submit calls `POST /pipeline/search` and shows loading spinner on button
+- [x] Location and Query are required text inputs
+- [x] Types dropdown is a grouped multi-select showing 8 categories with types
+- [x] Selected types display as removable chips
+- [x] Advanced options section is collapsed by default, expands on click
+- [x] Advanced options: Limit (default 10), Min Score (default 0), Grid Size (default 3)
+- [x] Submit calls `POST /pipeline/search` and shows loading spinner on button
 
 **Testing:**
-- [ ] SearchForm renders all required fields
-- [ ] Submit is disabled when location or query is empty
-- [ ] TypesMultiSelect renders grouped options and manages selection state
-- [ ] Advanced options toggle shows/hides fields
+- [x] SearchForm renders all required fields
+- [x] Submit is disabled when location or query is empty
+- [x] TypesMultiSelect renders grouped options and manages selection state
+- [x] Advanced options toggle shows/hides fields
 
 **Commit:** `feat(search): add search form with types multi-select and advanced options`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 

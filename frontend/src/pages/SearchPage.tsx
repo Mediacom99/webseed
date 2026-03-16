@@ -1,13 +1,18 @@
-import { Search } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import SearchForm from "@/components/search/SearchForm";
 
 export default function SearchPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Search</h1>
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-        <Search className="mb-4 h-12 w-12 text-muted-foreground" />
-        <p className="text-lg text-muted-foreground">Search coming soon</p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Find Businesses</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SearchForm />
+        </CardContent>
+      </Card>
     </div>
   );
 }
