@@ -136,21 +136,21 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/tooltip.tsx` — shadcn Tooltip
 
 **Acceptance criteria:**
-- [ ] Visiting `/` without API key redirects to `/login`
-- [ ] After login, sidebar shows 4 nav items with correct icons
-- [ ] Clicking nav items navigates to correct routes; active item is highlighted
-- [ ] Sidebar collapses to icon-only mode via toggle button
-- [ ] All placeholder pages render their titles at correct routes
+- [x] Visiting `/` without API key redirects to `/login`
+- [x] After login, sidebar shows 4 nav items with correct icons
+- [x] Clicking nav items navigates to correct routes; active item is highlighted
+- [x] Sidebar collapses to icon-only mode via toggle button
+- [x] All placeholder pages render their titles at correct routes
 
 **Testing:**
-- [ ] AuthGuard redirects unauthenticated users to `/login`
-- [ ] AuthGuard renders children when API key is present
-- [ ] Sidebar renders all nav items
-- [ ] Route navigation works between all pages
+- [x] AuthGuard redirects unauthenticated users to `/login`
+- [x] AuthGuard renders children when API key is present
+- [x] Sidebar renders all nav items
+- [x] Route navigation works between all pages
 
 **Commit:** `feat(layout): add sidebar navigation, AuthGuard, and route protection`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
