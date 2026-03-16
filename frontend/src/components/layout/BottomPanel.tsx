@@ -3,6 +3,10 @@ import { ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useWebSocketStore } from "@/stores/websocket";
+import {
+  useBottomPanelFilter,
+  type TabId,
+} from "@/hooks/useBottomPanelFilter";
 import type { PipelineEvent } from "@/types";
 
 const MIN_HEIGHT = 120;
@@ -16,6 +20,18 @@ const EVENT_COLORS: Record<string, string> = {
   cost: "text-amber-600 dark:text-amber-400",
   progress: "text-muted-foreground",
   job_complete: "text-green-600 dark:text-green-400",
+};
+
+const STATUS_ICONS: Record<string, string> = {
+  running: "\u25CF",
+  complete: "\u2713",
+  error: "\u2717",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  running: "text-blue-500",
+  complete: "text-green-500",
+  error: "text-red-500",
 };
 
 function formatTime(timestamp: string): string {
@@ -51,6 +67,7 @@ export default function BottomPanel() {
   const [expanded, setExpanded] = useState(false);
   const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
   const [userScrolled, setUserScrolled] = useState(false);
+  const [manualTab, setManualTab] = useState<TabId | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
   const startYRef = useRef(0);
@@ -61,6 +78,12 @@ export default function BottomPanel() {
   const activeJobs = useWebSocketStore((s) => s.activeJobs);
   const clearEvents = useWebSocketStore((s) => s.clearEvents);
 
+  const { tabs, autoTab, filterEvents } = useBottomPanelFilter();
+
+  // Use manual tab if set, otherwise auto
+  const activeTab = manualTab ?? autoTab;
+  const filteredEvents = filterEvents(activeTab);
+
   const lastEvent = events.length > 0 ? events[events.length - 1] : null;
   const jobCount = activeJobs.size;
 
@@ -69,12 +92,11 @@ export default function BottomPanel() {
     if (!userScrolled && logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
-  }, [events, userScrolled]);
+  }, [filteredEvents, userScrolled]);
 
   const handleScroll = useCallback(() => {
     if (!logRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = logRef.current;
-    // If user scrolled up more than 40px from bottom, pause auto-scroll
     const atBottom = scrollHeight - scrollTop - clientHeight < 40;
     setUserScrolled(!atBottom);
   }, []);
@@ -145,7 +167,6 @@ export default function BottomPanel() {
         aria-label={expanded ? "Collapse event panel" : "Expand event panel"}
         aria-expanded={expanded}
       >
-        {/* Connection dot */}
         <span
           className={cn(
             "h-2 w-2 shrink-0 rounded-full",
@@ -153,21 +174,16 @@ export default function BottomPanel() {
           )}
           aria-label={isConnected ? "Connected" : "Disconnected"}
         />
-
-        {/* Job status */}
         <span className="shrink-0 text-muted-foreground">
           {jobCount > 0
             ? `${jobCount} job${jobCount > 1 ? "s" : ""} running`
             : "Idle"}
         </span>
-
-        {/* Last event */}
         {lastEvent && (
           <span className="truncate text-muted-foreground">
             {lastEvent.message}
           </span>
         )}
-
         <span className="ml-auto shrink-0">
           {expanded ? (
             <ChevronDown className="h-3 w-3" />
@@ -180,15 +196,42 @@ export default function BottomPanel() {
       {/* Expanded event log */}
       {expanded && (
         <div className="flex flex-col" style={{ height: panelHeight - 8 }}>
-          {/* Toolbar */}
-          <div className="flex items-center justify-between border-b px-3 py-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Events ({events.length})
-            </span>
+          {/* Tab bar + Clear */}
+          <div className="flex items-center gap-1 border-b px-2 py-1">
+            <div className="flex flex-1 items-center gap-1 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={cn(
+                    "shrink-0 rounded-sm px-2 py-0.5 text-xs font-medium transition-colors",
+                    activeTab === tab.id
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setManualTab(tab.id === autoTab ? null : tab.id);
+                  }}
+                >
+                  {tab.status && (
+                    <span
+                      className={cn(
+                        "mr-1",
+                        STATUS_COLORS[tab.status] ?? "",
+                      )}
+                    >
+                      {STATUS_ICONS[tab.status]}
+                    </span>
+                  )}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 gap-1 px-2 text-xs"
+              className="h-6 shrink-0 gap-1 px-2 text-xs"
               onClick={clearEvents}
               aria-label="Clear events"
             >
@@ -203,12 +246,14 @@ export default function BottomPanel() {
             className="flex-1 overflow-auto"
             onScroll={handleScroll}
           >
-            {events.length === 0 ? (
+            {filteredEvents.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
                 No events yet
               </div>
             ) : (
-              events.map((event, i) => <EventRow key={i} event={event} />)
+              filteredEvents.map((event, i) => (
+                <EventRow key={i} event={event} />
+              ))
             )}
           </div>
         </div>

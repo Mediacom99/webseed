@@ -110,21 +110,21 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/hooks/useBottomPanelFilter.ts` — hook that returns the auto-selected tab based on current route and recent job IDs
 
 **Acceptance criteria:**
-- [ ] "All" tab shows all events (no filter)
-- [ ] One tab per active/recent job, showing job ID (short) and status indicator (● running, ✓ complete, ✗ error)
-- [ ] "This Business" tab auto-appears on `/businesses/:placeId`, filters events by `place_id`
-- [ ] Auto-filter: `/search` → most recent search job tab; `/businesses/:placeId` → "This Business"; other pages → "All"
-- [ ] User can manually switch tabs to override auto-filter
+- [x] "All" tab shows all events (no filter)
+- [x] One tab per active/recent job, showing job ID (short) and status indicator (● running, ✓ complete, ✗ error)
+- [x] "This Business" tab auto-appears on `/businesses/:placeId`, filters events by `place_id`
+- [x] Auto-filter: `/search` → most recent search job tab; `/businesses/:placeId` → "This Business"; other pages → "All"
+- [x] User can manually switch tabs to override auto-filter
 
 **Testing:**
-- [ ] Tab bar renders with "All" tab
-- [ ] Job tabs appear when events with distinct job_ids arrive
-- [ ] Selecting a job tab filters events to that job
-- [ ] "This Business" tab filters by place_id on detail page
+- [x] Tab bar renders with "All" tab
+- [x] Job tabs appear when events with distinct job_ids arrive
+- [x] Selecting a job tab filters events to that job
+- [x] "This Business" tab filters by place_id on detail page
 
 **Commit:** `feat(bottom-panel): add tab filtering and contextual auto-filter`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
