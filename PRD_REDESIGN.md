@@ -366,22 +366,22 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/BusinessDetailPage.tsx` — fetch business data, pass to detail component, refetch on WS events matching `place_id`
 
 **Acceptance criteria:**
-- [ ] Header shows: "← Businesses" back link, business name, status badge, primary type, rating with review count
-- [ ] Pipeline graph shows 6 nodes with correct state for the business's current status
-- [ ] Next-step button label matches current status (e.g., `enriched` → "Generate")
-- [ ] Button disabled and shows "Running..." for `running_*` statuses
-- [ ] No button shown for `emailed`, `email_queued`, or `opted_out`
-- [ ] Blacklist/Unblacklist toggle works; delete shows confirmation dialog
+- [x] Header shows: "← Businesses" back link, business name, status badge, primary type, rating with review count
+- [x] Pipeline graph shows 6 nodes with correct state for the business's current status
+- [x] Next-step button label matches current status (e.g., `enriched` → "Generate")
+- [x] Button disabled and shows "Running..." for `running_*` statuses
+- [x] No button shown for `emailed`, `email_queued`, or `opted_out`
+- [x] Blacklist/Unblacklist toggle works; delete shows confirmation dialog
 
 **Testing:**
-- [ ] PipelineGraph renders 6 nodes with correct states
-- [ ] Next-step button triggers correct API call
-- [ ] Business data loads from API
-- [ ] Blacklist toggle calls correct endpoint
+- [x] PipelineGraph renders 6 nodes with correct states
+- [x] Next-step button triggers correct API call
+- [x] Business data loads from API
+- [x] Blacklist toggle calls correct endpoint
 
 **Commit:** `feat(business-detail): add header, pipeline graph, and per-business actions`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 

@@ -1,21 +1,14 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2, ShieldBan, ShieldCheck } from "lucide-react";
+import {
+  Trash2,
+  ShieldBan,
+  ShieldCheck,
+  ArrowLeft,
+  Loader2,
+  Star,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,37 +21,62 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import StatusBadge from "./StatusBadge";
+import PipelineGraph from "./PipelineGraph";
 import {
-  useUpdateStatusBusinessesPlaceIdStatusPatch,
   useBlacklistAddBusinessesPlaceIdBlacklistPost,
   useBlacklistRemoveBusinessesPlaceIdBlacklistDelete,
   useDeleteBusinessBusinessesPlaceIdDelete,
 } from "@/api/endpoints/businesses/businesses";
+import {
+  usePipelineEnrichPipelineEnrichPost,
+  usePipelineGeneratePipelineGeneratePost,
+  usePipelineTestPipelineTestPost,
+  usePipelineDeployPipelineDeployPost,
+  usePipelineEmailPipelineEmailPost,
+} from "@/api/endpoints/pipeline/pipeline";
 
-const ALL_STATUSES = [
-  "searched",
-  "enriched",
-  "generated",
-  "tested",
-  "deployed",
-  "email_queued",
+const STATUS_TO_NEXT: Record<
+  string,
+  { label: string; step: string } | undefined
+> = {
+  searched: { label: "Enrich", step: "enrich" },
+  enriched: { label: "Generate", step: "generate" },
+  generated: { label: "Test", step: "test" },
+  tested: { label: "Deploy", step: "deploy" },
+  deployed: { label: "Email", step: "email" },
+  error_enrich: { label: "Retry Enrich", step: "enrich" },
+  error_generate: { label: "Retry Generate", step: "generate" },
+  error_test: { label: "Retry Test", step: "test" },
+  error_deploy: { label: "Retry Deploy", step: "deploy" },
+  error_email: { label: "Retry Email", step: "email" },
+};
+
+const NO_ACTION_STATUSES = new Set([
   "emailed",
+  "email_queued",
   "opted_out",
-];
+]);
 
-interface BusinessData {
+const RUNNING_STATUSES = new Set([
+  "running_enrich",
+  "running_generate",
+  "running_test",
+  "running_deploy",
+  "running_email",
+]);
+
+export interface BusinessData {
   place_id: string;
   name?: string;
   address?: string;
   phone?: string;
   rating?: number;
-  reviews_count?: number;
+  reviews?: number;
   lead_score?: number;
   status?: string;
-  website_url?: string;
+  primary_type?: string;
   vercel_url?: string;
   error_detail?: string;
-  city?: string;
   [key: string]: unknown;
 }
 
@@ -72,29 +90,22 @@ export default function BusinessDetail({
   onRefresh,
 }: BusinessDetailProps) {
   const navigate = useNavigate();
-  const [newStatus, setNewStatus] = useState(business.status ?? "");
+  const status = business.status ?? "searched";
+  const isOptedOut = status === "opted_out";
+  const isRunning = RUNNING_STATUSES.has(status);
+  const nextAction = STATUS_TO_NEXT[status];
+  const showAction = !NO_ACTION_STATUSES.has(status) && !isRunning;
 
-  const updateStatus = useUpdateStatusBusinessesPlaceIdStatusPatch();
   const blacklistAdd = useBlacklistAddBusinessesPlaceIdBlacklistPost();
-  const blacklistRemove = useBlacklistRemoveBusinessesPlaceIdBlacklistDelete();
+  const blacklistRemove =
+    useBlacklistRemoveBusinessesPlaceIdBlacklistDelete();
   const deleteBusiness = useDeleteBusinessBusinessesPlaceIdDelete();
 
-  const isOptedOut = business.status === "opted_out";
-
-  const handleStatusChange = () => {
-    if (!newStatus || newStatus === business.status) return;
-
-    updateStatus.mutate(
-      { placeId: business.place_id, data: { to: newStatus } },
-      {
-        onSuccess: () => {
-          toast.success(`Status changed to ${newStatus}`);
-          onRefresh();
-        },
-        onError: () => toast.error("Failed to change status"),
-      },
-    );
-  };
+  const enrichMutation = usePipelineEnrichPipelineEnrichPost();
+  const generateMutation = usePipelineGeneratePipelineGeneratePost();
+  const testMutation = usePipelineTestPipelineTestPost();
+  const deployMutation = usePipelineDeployPipelineDeployPost();
+  const emailMutation = usePipelineEmailPipelineEmailPost();
 
   const handleBlacklistToggle = () => {
     if (isOptedOut) {
@@ -135,113 +146,136 @@ export default function BusinessDetail({
     );
   };
 
-  const fields: Array<{ label: string; value: unknown }> = [
-    { label: "Place ID", value: business.place_id },
-    { label: "Name", value: business.name },
-    { label: "Address", value: business.address },
-    { label: "City", value: business.city },
-    { label: "Phone", value: business.phone },
-    { label: "Rating", value: business.rating },
-    { label: "Reviews", value: business.reviews_count },
-    { label: "Lead Score", value: business.lead_score },
-    { label: "Website URL", value: business.website_url },
-    { label: "Vercel URL", value: business.vercel_url },
-    { label: "Error", value: business.error_detail },
-  ];
+  const handleNextStep = () => {
+    if (!nextAction) return;
+    const data = { data: { place_ids: [business.place_id] } };
+    const opts = {
+      onSuccess: () => {
+        toast.success(`${nextAction.label} started`);
+        onRefresh();
+      },
+      onError: () => toast.error(`${nextAction.label} failed`),
+    };
+
+    switch (nextAction.step) {
+      case "enrich":
+        enrichMutation.mutate(data, opts);
+        break;
+      case "generate":
+        generateMutation.mutate(data, opts);
+        break;
+      case "test":
+        testMutation.mutate(data, opts);
+        break;
+      case "deploy":
+        deployMutation.mutate(data, opts);
+        break;
+      case "email":
+        emailMutation.mutate(data, opts);
+        break;
+    }
+  };
+
+  const anyPending =
+    enrichMutation.isPending ||
+    generateMutation.isPending ||
+    testMutation.isPending ||
+    deployMutation.isPending ||
+    emailMutation.isPending;
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>{business.name ?? "Unknown Business"}</CardTitle>
-            {business.status && <StatusBadge status={business.status} />}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={isOptedOut ? "default" : "outline"}
-              size="sm"
-              onClick={handleBlacklistToggle}
-            >
-              {isOptedOut ? (
-                <>
-                  <ShieldCheck className="mr-1 h-4 w-4" /> Unblacklist
-                </>
-              ) : (
-                <>
-                  <ShieldBan className="mr-1 h-4 w-4" /> Blacklist
-                </>
+      {/* Header */}
+      <div>
+        <button
+          type="button"
+          className="mb-2 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => navigate("/businesses")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Businesses
+        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold">
+            {business.name ?? "Unknown Business"}
+          </h1>
+          <StatusBadge status={status} />
+          {business.primary_type && (
+            <span className="text-sm capitalize text-muted-foreground">
+              {(business.primary_type as string).replace(/_/g, " ")}
+            </span>
+          )}
+          {business.rating != null && (
+            <span className="flex items-center gap-1 text-sm">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              {business.rating}
+              {business.reviews != null && (
+                <span className="text-muted-foreground">
+                  ({business.reviews})
+                </span>
               )}
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="mr-1 h-4 w-4" /> Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete business?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently remove {business.name ?? "this business"}{" "}
-                    from the database.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-3 md:grid-cols-2">
-            {fields.map(({ label, value }) =>
-              value != null && value !== "" ? (
-                <div key={label}>
-                  <dt className="text-sm text-muted-foreground">{label}</dt>
-                  <dd className="text-sm font-medium break-all">
-                    {String(value)}
-                  </dd>
-                </div>
-              ) : null,
-            )}
-          </dl>
-        </CardContent>
-      </Card>
+            </span>
+          )}
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Change Status</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center gap-3">
-          <Select value={newStatus} onValueChange={setNewStatus}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              {ALL_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={handleStatusChange}
-            disabled={
-              !newStatus ||
-              newStatus === business.status ||
-              updateStatus.isPending
-            }
-          >
-            Update
+      {/* Pipeline graph */}
+      <PipelineGraph status={status} />
+
+      {/* Actions */}
+      <div className="flex flex-wrap items-center gap-2">
+        {isRunning && (
+          <Button disabled>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Running...
           </Button>
-        </CardContent>
-      </Card>
+        )}
+        {showAction && nextAction && (
+          <Button onClick={handleNextStep} disabled={anyPending}>
+            {anyPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {nextAction.label}
+          </Button>
+        )}
+        <Button
+          variant={isOptedOut ? "default" : "outline"}
+          size="sm"
+          onClick={handleBlacklistToggle}
+        >
+          {isOptedOut ? (
+            <>
+              <ShieldCheck className="mr-1 h-4 w-4" /> Unblacklist
+            </>
+          ) : (
+            <>
+              <ShieldBan className="mr-1 h-4 w-4" /> Blacklist
+            </>
+          )}
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm">
+              <Trash2 className="mr-1 h-4 w-4" /> Delete
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete business?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove{" "}
+                {business.name ?? "this business"} from the database.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
