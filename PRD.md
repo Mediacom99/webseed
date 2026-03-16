@@ -407,22 +407,22 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/dropdown-menu.tsx` — shadcn DropdownMenu
 
 **Acceptance criteria:**
-- [ ] Table renders all businesses from API with correct columns
-- [ ] Status filter dropdown filters the list (calls API with `?status=` param)
-- [ ] Filter bar shows count badges per status from stats endpoint
-- [ ] Client-side sorting works on name, rating, lead_score columns
-- [ ] Clicking a business row navigates to `/businesses/:placeId`
-- [ ] Table refreshes when WS `step_done` events arrive
+- [x] Table renders all businesses from API with correct columns
+- [x] Status filter dropdown filters the list (calls API with `?status=` param)
+- [x] Filter bar shows count badges per status from stats endpoint
+- [x] Client-side sorting works on name, rating, lead_score columns
+- [x] Clicking a business row navigates to `/businesses/:placeId`
+- [x] Table refreshes when WS `step_done` events arrive
 
 **Testing:**
-- [ ] BusinessTable renders rows from mock data
-- [ ] Status filter updates query params and refetches
-- [ ] Row click navigates to detail route
-- [ ] Empty state when no businesses match filter
+- [x] BusinessTable renders rows from mock data
+- [x] Status filter updates query params and refetches
+- [x] Row click navigates to detail route
+- [x] Empty state when no businesses match filter
 
 **Commit:** `feat(businesses): add filterable business data table with status filter`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
