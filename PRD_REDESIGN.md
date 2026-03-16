@@ -507,23 +507,23 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - All interactive components — add `aria-label`, keyboard navigation, focus management
 
 **Acceptance criteria:**
-- [ ] Dashboard: "No businesses yet — start with a search" when stats are all zero
-- [ ] Search results: "No results" when search returns empty
-- [ ] Businesses table: "No businesses match this filter" when filtered list is empty
-- [ ] Business detail: graceful handling of missing/null fields
-- [ ] Sidebar: full on desktop, icon-only on tablet (≤1024px), hamburger overlay on mobile (≤768px)
-- [ ] Bottom panel: usable on mobile (minimum height, touch-friendly resize)
-- [ ] All interactive elements have keyboard focus indicators and aria labels
+- [x] Dashboard: "No businesses yet — start with a search" when stats are all zero
+- [x] Search results: "No results" when search returns empty
+- [x] Businesses table: "No businesses match this filter" when filtered list is empty
+- [x] Business detail: graceful handling of missing/null fields
+- [x] Sidebar: full on desktop, icon-only on tablet (≤1024px), hamburger overlay on mobile (≤768px)
+- [x] Bottom panel: usable on mobile (minimum height, touch-friendly resize)
+- [x] All interactive elements have keyboard focus indicators and aria labels
 
 **Testing:**
-- [ ] Empty states render when data arrays are empty
-- [ ] Sidebar collapses correctly at breakpoints
-- [ ] Tab/keyboard navigation works through major interactive elements
-- [ ] No accessibility warnings from axe-core on key pages
+- [x] Empty states render when data arrays are empty
+- [x] Sidebar collapses correctly at breakpoints
+- [x] Tab/keyboard navigation works through major interactive elements
+- [x] No accessibility warnings from axe-core on key pages
 
 **Commit:** `feat(polish): add empty states, responsive design, and accessibility`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 

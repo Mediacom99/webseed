@@ -58,6 +58,12 @@ export default function SearchPage() {
         </CardContent>
       </Card>
 
+      {lastJobId && results.length === 0 && (
+        <p className="py-8 text-center text-muted-foreground">
+          No results
+        </p>
+      )}
+
       {results.length > 0 && (
         <>
           <div className="space-y-2">

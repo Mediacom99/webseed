@@ -60,6 +60,22 @@ export default function PipelineFunnel() {
   }
 
   const stats = data?.data ?? {};
+  const total = Object.values(stats).reduce(
+    (sum: number, n: number) => sum + n,
+    0,
+  );
+
+  if (total === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+          <p className="text-muted-foreground">
+            No businesses yet — start with a search
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
