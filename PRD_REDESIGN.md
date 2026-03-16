@@ -74,26 +74,26 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/index.css` — styles for panel resize handle
 
 **Acceptance criteria:**
-- [ ] Collapsed bar visible on all authenticated pages (~32px height)
-- [ ] Green/red dot reflects `isConnected` from WebSocket store
-- [ ] Active job count shows "N jobs running" or "Idle"
-- [ ] Last event message auto-updates as events arrive
-- [ ] Clicking collapsed bar expands the panel
-- [ ] Expanded panel shows scrollable event log with `timestamp | event_type | step | message` rows
-- [ ] Events color-coded: blue (step_start), green (step_done), red (step_error), amber (cost)
-- [ ] Clear button flushes event list
-- [ ] Panel resizable via drag handle on top edge
-- [ ] Auto-scrolls to bottom; pauses when user scrolls up
+- [x] Collapsed bar visible on all authenticated pages (~32px height)
+- [x] Green/red dot reflects `isConnected` from WebSocket store
+- [x] Active job count shows "N jobs running" or "Idle"
+- [x] Last event message auto-updates as events arrive
+- [x] Clicking collapsed bar expands the panel
+- [x] Expanded panel shows scrollable event log with `timestamp | event_type | step | message` rows
+- [x] Events color-coded: blue (step_start), green (step_done), red (step_error), amber (cost)
+- [x] Clear button flushes event list
+- [x] Panel resizable via drag handle on top edge
+- [x] Auto-scrolls to bottom; pauses when user scrolls up
 
 **Testing:**
-- [ ] BottomPanel renders in collapsed state by default
-- [ ] Clicking bar toggles expanded state
-- [ ] Events from WebSocket store display in the log
-- [ ] Clear button empties the event list
+- [x] BottomPanel renders in collapsed state by default
+- [x] Clicking bar toggles expanded state
+- [x] Events from WebSocket store display in the log
+- [x] Clear button empties the event list
 
 **Commit:** `feat(bottom-panel): add global event log with collapsed/expanded states`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
