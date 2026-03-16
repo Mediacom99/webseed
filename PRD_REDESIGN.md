@@ -476,19 +476,19 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - All page files — add error states (error message + retry button) for failed API queries
 
 **Acceptance criteria:**
-- [ ] Each page shows a skeleton while its primary data is loading
-- [ ] Each page shows an error message with retry button when API call fails
-- [ ] Skeletons match the layout of the loaded content (same card shapes, table rows)
-- [ ] Error boundaries catch rendering errors and show fallback UI
+- [x] Each page shows a skeleton while its primary data is loading
+- [x] Each page shows an error message with retry button when API call fails
+- [x] Skeletons match the layout of the loaded content (same card shapes, table rows)
+- [x] Error boundaries catch rendering errors and show fallback UI
 
 **Testing:**
-- [ ] Skeleton renders when query is in loading state
-- [ ] Error state renders when query fails
-- [ ] Retry button triggers refetch
+- [x] Skeleton renders when query is in loading state
+- [x] Error state renders when query fails
+- [x] Retry button triggers refetch
 
 **Commit:** `feat(polish): add loading skeletons and error states for redesigned pages`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
