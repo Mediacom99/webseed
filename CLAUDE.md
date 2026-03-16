@@ -107,7 +107,7 @@ Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, 
 | `claude_cli.py` | `run_claude_cli()` subprocess helper + JSON parser + timeout reader |
 | `db/tables.py` | SQLAlchemy ORM: `BusinessRow`, `SettingRow`, `EventLogRow` |
 | `db/store.py` | `PostgresStore` implementing `PersistencePort` |
-| `api/app.py` | `create_app()` factory, lifespan (crash recovery), WebSocket endpoint, test page |
+| `api/app.py` | `create_app()` factory, lifespan (crash recovery), WebSocket endpoint |
 | `api/auth.py` | `require_api_key` FastAPI dependency |
 | `api/ws.py` | `WebSocketManager`, `make_event_callback()` sync-to-async bridge |
 | `api/deps.py` | `get_store()`, `get_file_storage()` FastAPI dependencies |
@@ -131,11 +131,10 @@ alembic upgrade head                # run migrations (creates tables + seeds pro
 python -m webseed                   # starts uvicorn on 0.0.0.0:8000
 ```
 
-Visit `http://localhost:8000/` for the WebSocket test console.
 
 ## REST API Endpoints
 
-All require `X-API-Key` header except `GET /` (test page) and `WS /ws`.
+All require `X-API-Key` header except `WS /ws`.
 
 ### Pipeline (all return `{"job_id": "uuid"}` immediately, run in background)
 - `POST /pipeline/search` — `{location, query, types, limit?, min_score?, grid_size?}`
@@ -166,8 +165,6 @@ All require `X-API-Key` header except `GET /` (test page) and `WS /ws`.
 ### WebSocket
 - `WS /ws` — real-time event stream, auth via `?api_key=`
 
-### Test page
-- `GET /` — minimal HTML page with WebSocket connection for testing
 
 ## WebSocket Event Format
 
