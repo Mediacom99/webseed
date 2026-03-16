@@ -156,10 +156,10 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 
 ## HARD STOP — Checkpoint: Auth & navigation
 **Verify before continuing:**
-- [ ] Login flow works: enter API key → lands on dashboard
-- [ ] Sidebar navigation between all pages works
-- [ ] Refreshing page preserves login state
-- [ ] Visiting any protected route while logged out redirects to `/login`
+- [x] Login flow works: enter API key → lands on dashboard
+- [x] Sidebar navigation between all pages works
+- [x] Refreshing page preserves login state
+- [x] Visiting any protected route while logged out redirects to `/login`
 
 ---
 
@@ -180,22 +180,22 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/layout/AuthGuard.tsx` — connect WebSocket on mount (when API key present), disconnect on unmount/logout
 
 **Acceptance criteria:**
-- [ ] WebSocket connects automatically after login
-- [ ] Store parses incoming JSON into typed `PipelineEvent` objects
-- [ ] `isConnected` flag reflects actual connection state
-- [ ] Reconnects with exponential backoff on disconnect (up to 30s max)
-- [ ] `disconnect()` cleanly closes the connection
-- [ ] Events buffer is capped at 200 entries (oldest dropped)
+- [x] WebSocket connects automatically after login
+- [x] Store parses incoming JSON into typed `PipelineEvent` objects
+- [x] `isConnected` flag reflects actual connection state
+- [x] Reconnects with exponential backoff on disconnect (up to 30s max)
+- [x] `disconnect()` cleanly closes the connection
+- [x] Events buffer is capped at 200 entries (oldest dropped)
 
 **Testing:**
-- [ ] WebSocket store unit test: event parsing, buffer cap, activeJobs tracking
-- [ ] useWebSocketEvents hook filters events by job_id correctly
-- [ ] Reconnect logic backs off correctly
-- [ ] Disconnect clears state
+- [x] WebSocket store unit test: event parsing, buffer cap, activeJobs tracking
+- [x] useWebSocketEvents hook filters events by job_id correctly
+- [x] Reconnect logic backs off correctly
+- [x] Disconnect clears state
 
 **Commit:** `feat(websocket): add Zustand WebSocket store with reconnect and event filtering`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
