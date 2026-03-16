@@ -286,22 +286,22 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/select.tsx` — shadcn Select
 
 **Acceptance criteria:**
-- [ ] Search form renders with all fields and correct defaults
-- [ ] Submitting with valid data calls `POST /api/pipeline/search` and returns a job_id
-- [ ] Job_id is set as the active job — pipeline flow starts showing WS events for it
-- [ ] Validation prevents submission without location and query
-- [ ] Toast notification shows on successful submission with job_id
-- [ ] Toast shows error message on API failure
+- [x] Search form renders with all fields and correct defaults
+- [x] Submitting with valid data calls `POST /api/pipeline/search` and returns a job_id
+- [x] Job_id is set as the active job — pipeline flow starts showing WS events for it
+- [x] Validation prevents submission without location and query
+- [x] Toast notification shows on successful submission with job_id
+- [x] Toast shows error message on API failure
 
 **Testing:**
-- [ ] Search form renders all fields with defaults
-- [ ] Form validation rejects empty location/query
-- [ ] Successful submission calls API and shows success toast
-- [ ] API error displays error toast
+- [x] Search form renders all fields with defaults
+- [x] Form validation rejects empty location/query
+- [x] Successful submission calls API and shows success toast
+- [x] API error displays error toast
 
 **Commit:** `feat(pipeline): add search form with Maps discovery job submission`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
