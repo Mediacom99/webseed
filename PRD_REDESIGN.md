@@ -144,22 +144,22 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/DashboardPage.tsx` — replace current layout with funnel + summary + quick action buttons + two-column panels
 
 **Acceptance criteria:**
-- [ ] 6 funnel nodes display counts from stats endpoint
-- [ ] Running indicator shows "+N running" on nodes with `running_*` businesses
-- [ ] Summary row shows Errors (clickable link to `/businesses?status=errors`), Opted Out, Total
-- [ ] "New Search" button navigates to `/search`
-- [ ] "View Errors" button navigates to `/businesses?status=errors`
-- [ ] Stats refetch on WebSocket `step_done` events (via TanStack Query invalidation)
+- [x] 6 funnel nodes display counts from stats endpoint
+- [x] Running indicator shows "+N running" on nodes with `running_*` businesses
+- [x] Summary row shows Errors (clickable link to `/businesses?status=errors`), Opted Out, Total
+- [x] "New Search" button navigates to `/search`
+- [x] "View Errors" button navigates to `/businesses?status=errors`
+- [x] Stats refetch on WebSocket `step_done` events (via TanStack Query invalidation)
 
 **Testing:**
-- [ ] PipelineFunnel renders 6 nodes with correct labels
-- [ ] Stats data populates node counts
-- [ ] Quick action buttons navigate to correct routes
-- [ ] Summary row renders error/opted-out/total counts
+- [x] PipelineFunnel renders 6 nodes with correct labels
+- [x] Stats data populates node counts
+- [x] Quick action buttons navigate to correct routes
+- [x] Summary row renders error/opted-out/total counts
 
 **Commit:** `feat(dashboard): add pipeline funnel and stats summary`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
