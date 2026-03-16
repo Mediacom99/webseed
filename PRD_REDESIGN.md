@@ -322,23 +322,23 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - `frontend/src/pages/BusinessesPage.tsx` — integrate BulkActionBar; add overflow menu (⋯) with Export CSV
 
 **Acceptance criteria:**
-- [ ] Bulk action bar appears when 1+ rows selected
-- [ ] Primary action changes based on selected statuses (e.g., all `enriched` → "Generate")
-- [ ] Error statuses show "Retry [step]" as primary action
-- [ ] Mixed statuses show all applicable action buttons
-- [ ] Blacklist action shows confirmation dialog
-- [ ] Delete action shows confirmation dialog, calls `POST /businesses/hard-delete`
-- [ ] Overflow menu (⋯) contains "Export CSV" → triggers file download
+- [x] Bulk action bar appears when 1+ rows selected
+- [x] Primary action changes based on selected statuses (e.g., all `enriched` → "Generate")
+- [x] Error statuses show "Retry [step]" as primary action
+- [x] Mixed statuses show all applicable action buttons
+- [x] Blacklist action shows confirmation dialog
+- [x] Delete action shows confirmation dialog, calls `POST /businesses/hard-delete`
+- [x] Overflow menu (⋯) contains "Export CSV" → triggers file download
 
 **Testing:**
-- [ ] BulkActionBar renders with correct primary action for uniform selection
-- [ ] Mixed selection shows multiple action buttons
-- [ ] Confirmation dialogs appear for destructive actions
-- [ ] CSV export triggers download
+- [x] BulkActionBar renders with correct primary action for uniform selection
+- [x] Mixed selection shows multiple action buttons
+- [x] Confirmation dialogs appear for destructive actions
+- [x] CSV export triggers download
 
 **Commit:** `feat(businesses): add smart bulk actions and CSV export`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Complete
 
 ---
 
