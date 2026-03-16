@@ -7,7 +7,7 @@ import AuthGuard from "@/components/layout/AuthGuard";
 import AppLayout from "@/components/layout/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
-import PipelinePage from "@/pages/PipelinePage";
+import SearchPage from "@/pages/SearchPage";
 import BusinessesPage from "@/pages/BusinessesPage";
 import BusinessDetailPage from "@/pages/BusinessDetailPage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -32,7 +32,7 @@ export default function App() {
               <Route element={<AuthGuard />}>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<DashboardPage />} />
-                  <Route path="/pipeline" element={<PipelinePage />} />
+                  <Route path="/search" element={<SearchPage />} />
                   <Route path="/businesses" element={<BusinessesPage />} />
                   <Route
                     path="/businesses/:placeId"

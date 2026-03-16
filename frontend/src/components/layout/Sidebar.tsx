@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
-  GitBranch,
+  Search,
   Building2,
   Settings,
   PanelLeftClose,
@@ -23,7 +23,7 @@ import { useAuthStore } from "@/stores/auth";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/pipeline", icon: GitBranch, label: "Pipeline" },
+  { to: "/search", icon: Search, label: "Search" },
   { to: "/businesses", icon: Building2, label: "Businesses" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ] as const;

@@ -25,7 +25,7 @@ describe("Sidebar", () => {
     renderSidebar();
 
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Pipeline")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Businesses")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
@@ -45,7 +45,7 @@ describe("Sidebar", () => {
 
     // Nav labels should be hidden when collapsed
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
-    expect(screen.queryByText("Pipeline")).not.toBeInTheDocument();
+    expect(screen.queryByText("Search")).not.toBeInTheDocument();
   });
 
   it("expands sidebar on toggle click when collapsed", async () => {
