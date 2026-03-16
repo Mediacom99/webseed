@@ -1,7 +1,23 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PromptEditor from "@/components/settings/PromptEditor";
+import ConfigTable from "@/components/settings/ConfigTable";
+
 export default function SettingsPage() {
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <Tabs defaultValue="prompts">
+        <TabsList>
+          <TabsTrigger value="prompts">Prompts</TabsTrigger>
+          <TabsTrigger value="config">Config</TabsTrigger>
+        </TabsList>
+        <TabsContent value="prompts">
+          <PromptEditor />
+        </TabsContent>
+        <TabsContent value="config">
+          <ConfigTable />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

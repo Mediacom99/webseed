@@ -517,33 +517,33 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/collapsible.tsx` — shadcn Collapsible
 
 **Acceptance criteria:**
-- [ ] Prompts tab loads all `prompt.*` settings and displays as expandable editors
-- [ ] Config tab loads all `config.*` settings in an editable table
-- [ ] Editing a value and clicking save calls `PUT /api/settings/{key}` with new value
-- [ ] Success toast confirms save; error toast on failure
-- [ ] Unsaved changes are visually indicated (dirty state)
-- [ ] Tab switching preserves unsaved edits (client-side)
+- [x] Prompts tab loads all `prompt.*` settings and displays as expandable editors
+- [x] Config tab loads all `config.*` settings in an editable table
+- [x] Editing a value and clicking save calls `PUT /api/settings/{key}` with new value
+- [x] Success toast confirms save; error toast on failure
+- [x] Unsaved changes are visually indicated (dirty state)
+- [x] Tab switching preserves unsaved edits (client-side)
 
 **Testing:**
-- [ ] PromptEditor renders prompt settings from mock data
-- [ ] ConfigTable renders config settings and allows inline editing
-- [ ] Save calls PUT endpoint with correct key and value
-- [ ] Dirty state indicator shows on modified fields
+- [x] PromptEditor renders prompt settings from mock data
+- [x] ConfigTable renders config settings and allows inline editing
+- [x] Save calls PUT endpoint with correct key and value
+- [x] Dirty state indicator shows on modified fields
 
 **Commit:** `feat(settings): add prompt editor and config table with tabbed layout`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
 ## HARD STOP — Checkpoint: All features complete
 **Verify before continuing:**
-- [ ] Dashboard: stats cards load, recent activity shows WS events
-- [ ] Pipeline: search form works, flow updates in real-time, run pipeline form works
-- [ ] Businesses: table filters/sorts, detail page loads, bulk actions work, CSV exports
-- [ ] Settings: prompts and config are editable and saveable
-- [ ] WebSocket: events flow to all pages, reconnect works after disconnect
-- [ ] All routes protected by AuthGuard
+- [x] Dashboard: stats cards load, recent activity shows WS events
+- [x] Pipeline: search form works, flow updates in real-time, run pipeline form works
+- [x] Businesses: table filters/sorts, detail page loads, bulk actions work, CSV exports
+- [x] Settings: prompts and config are editable and saveable
+- [x] WebSocket: events flow to all pages, reconnect works after disconnect
+- [x] All routes protected by AuthGuard
 
 ---
 
