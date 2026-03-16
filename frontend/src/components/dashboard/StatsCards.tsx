@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGetStatsBusinessesStatsGet } from "@/api/endpoints/businesses/businesses";
 import { useWebSocketStore } from "@/stores/websocket";
 
@@ -27,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function StatsCards() {
-  const { data, refetch } = useGetStatsBusinessesStatsGet({
+  const { data, isLoading, refetch } = useGetStatsBusinessesStatsGet({
     query: { staleTime: 30_000 },
   });
   const events = useWebSocketStore((s) => s.events);
@@ -41,6 +42,23 @@ export default function StatsCards() {
   }, [lastStepDone, refetch]);
 
   const stats = data?.data;
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-20" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-12" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   if (!stats) return null;
 

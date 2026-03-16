@@ -567,20 +567,20 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/App.tsx` — wrap route tree in ErrorBoundary
 
 **Acceptance criteria:**
-- [ ] Every page shows skeleton loaders while data is fetching
-- [ ] Error boundary catches rendering errors and shows recovery UI
-- [ ] API error states show inline error message with retry button
-- [ ] Toast notifications show on mutation errors (422, 500, network)
+- [x] Every page shows skeleton loaders while data is fetching
+- [x] Error boundary catches rendering errors and shows recovery UI
+- [x] API error states show inline error message with retry button
+- [x] Toast notifications show on mutation errors (422, 500, network)
 
 **Testing:**
-- [ ] Skeleton loaders appear during loading state (mock slow API)
-- [ ] ErrorBoundary catches thrown errors and renders fallback
-- [ ] Retry button re-fetches data
-- [ ] API 422 errors display field-level messages on forms
+- [x] Skeleton loaders appear during loading state (mock slow API)
+- [x] ErrorBoundary catches thrown errors and renders fallback
+- [x] Retry button re-fetches data
+- [x] API 422 errors display field-level messages on forms
 
 **Commit:** `feat(polish): add loading skeletons and error boundaries`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
