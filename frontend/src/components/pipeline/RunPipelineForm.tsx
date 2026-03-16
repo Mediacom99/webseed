@@ -5,13 +5,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListBusinessesBusinessesGet } from "@/api/endpoints/businesses/businesses";
 import {
@@ -46,7 +39,7 @@ export default function RunPipelineForm({ onJobStarted }: RunPipelineFormProps) 
   const [onlyMedia, setOnlyMedia] = useState(false);
 
   const { data: businessesData } = useListBusinessesBusinessesGet();
-  const businesses = businessesData?.data ?? [];
+  const businesses = Array.isArray(businessesData?.data) ? businessesData.data : [];
 
   const runMutation = usePipelineRunPipelineRunPost();
   const enrichMutation = usePipelineEnrichPipelineEnrichPost();
@@ -102,8 +95,10 @@ export default function RunPipelineForm({ onJobStarted }: RunPipelineFormProps) 
     if (placeIds.length === 0) return;
 
     const opts = {
-      onSuccess: (r: { data: { job_id: string } }) =>
-        handleSuccess(r.data.job_id),
+      onSuccess: (r: unknown) => {
+        const resp = r as { data: { job_id: string } };
+        handleSuccess(resp.data.job_id);
+      },
       onError: handleError,
     };
 

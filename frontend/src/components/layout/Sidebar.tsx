@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -8,6 +8,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,9 +28,107 @@ const navItems = [
   { to: "/settings", icon: Settings, label: "Settings" },
 ] as const;
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    setMatches(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [query]);
+
+  return matches;
+}
+
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isTablet = useMediaQuery("(max-width: 1024px)");
+  const [collapsed, setCollapsed] = useState(isTablet);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const clearApiKey = useAuthStore((s) => s.clearApiKey);
+
+  // Auto-collapse on tablet
+  useEffect(() => {
+    if (isTablet && !isMobile) setCollapsed(true);
+  }, [isTablet, isMobile]);
+
+  // Close mobile menu on navigation
+  const handleNavClick = () => {
+    if (isMobile) setMobileOpen(false);
+  };
+
+  // Mobile: hamburger toggle
+  if (isMobile) {
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed left-3 top-3 z-50 md:hidden"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
+
+        {mobileOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden="true"
+            />
+            <aside
+              className="fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r bg-sidebar text-sidebar-foreground"
+              role="navigation"
+              aria-label="Main navigation"
+            >
+              <div className="flex h-14 items-center px-4">
+                <span className="text-lg font-semibold tracking-tight">
+                  webseed
+                </span>
+              </div>
+              <Separator />
+              <nav className="flex flex-1 flex-col gap-1 p-2">
+                {navItems.map(({ to, icon: Icon, label }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === "/"}
+                    onClick={handleNavClick}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground",
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{label}</span>
+                  </NavLink>
+                ))}
+              </nav>
+              <Separator />
+              <div className="p-2">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3"
+                  onClick={clearApiKey}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </Button>
+              </div>
+            </aside>
+          </>
+        )}
+      </>
+    );
+  }
 
   return (
     <aside
@@ -36,6 +136,8 @@ export default function Sidebar() {
         "flex h-screen flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-200",
         collapsed ? "w-16" : "w-56",
       )}
+      role="navigation"
+      aria-label="Main navigation"
     >
       <div className="flex h-14 items-center px-4">
         {!collapsed && (

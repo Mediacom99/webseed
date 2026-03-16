@@ -10,3 +10,18 @@ globalThis.ResizeObserver = ResizeObserverMock;
 
 // Polyfill scrollIntoView for jsdom
 Element.prototype.scrollIntoView = function () {};
+
+// Polyfill matchMedia for responsive components
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+});

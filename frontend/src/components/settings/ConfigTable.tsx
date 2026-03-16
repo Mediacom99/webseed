@@ -28,7 +28,8 @@ export default function ConfigTable() {
 
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
 
-  const settings: ConfigItem[] = (data?.data ?? []).map((s) => {
+  const rawData = Array.isArray(data?.data) ? data.data : [];
+  const settings: ConfigItem[] = rawData.map((s) => {
     const item = s as Record<string, string>;
     return {
       key: item.key,

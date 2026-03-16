@@ -12,9 +12,9 @@ const searchSchema = z.object({
   location: z.string().min(1, "Location is required"),
   query: z.string().min(1, "Query is required"),
   types: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
-  min_score: z.coerce.number().int().min(0).max(60).default(0),
-  grid_size: z.coerce.number().int().min(1).max(10).default(3),
+  limit: z.number().int().min(1).max(100),
+  min_score: z.number().int().min(0).max(60),
+  grid_size: z.number().int().min(1).max(10),
 });
 
 type SearchFormValues = z.infer<typeof searchSchema>;
@@ -30,8 +30,9 @@ export default function SearchForm({ onJobStarted }: SearchFormProps) {
     setValue,
     watch,
     formState: { errors },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useForm<SearchFormValues>({
-    resolver: zodResolver(searchSchema),
+    resolver: zodResolver(searchSchema) as any,
     defaultValues: {
       location: "",
       query: "",
@@ -63,7 +64,8 @@ export default function SearchForm({ onJobStarted }: SearchFormProps) {
       },
       {
         onSuccess: (response) => {
-          const jobId = response.data.job_id;
+          const resp = response as { data: { job_id: string } };
+          const jobId = resp.data.job_id;
           toast.success(`Search started (job: ${jobId.slice(0, 8)}...)`);
           onJobStarted(jobId);
         },

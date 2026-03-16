@@ -76,8 +76,8 @@ export default function BusinessTable() {
   }, [lastStepDone, refetch]);
 
   const businesses: BusinessRow[] = useMemo(() => {
-    const raw = businessesData?.data ?? [];
-    return raw.map((b) => {
+    const raw = Array.isArray(businessesData?.data) ? businessesData.data : [];
+    return raw.map((b: Record<string, unknown>) => {
       const biz = b as Record<string, unknown>;
       return {
         place_id: biz.place_id as string,

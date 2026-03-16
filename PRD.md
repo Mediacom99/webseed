@@ -601,22 +601,22 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - All interactive elements — ensure keyboard navigation and aria labels
 
 **Acceptance criteria:**
-- [ ] Every list/table shows a meaningful empty state when data is empty
-- [ ] Sidebar collapses automatically on screens < 1024px
-- [ ] Mobile: sidebar hidden by default, toggle via hamburger menu
-- [ ] All buttons and form elements are keyboard-navigable
-- [ ] Color contrast meets WCAG AA for all text and badges
-- [ ] Focus indicators visible on all interactive elements
+- [x] Every list/table shows a meaningful empty state when data is empty
+- [x] Sidebar collapses automatically on screens < 1024px
+- [x] Mobile: sidebar hidden by default, toggle via hamburger menu
+- [x] All buttons and form elements are keyboard-navigable
+- [x] Color contrast meets WCAG AA for all text and badges
+- [x] Focus indicators visible on all interactive elements
 
 **Testing:**
-- [ ] Empty state renders when API returns empty arrays
-- [ ] Sidebar collapse/expand works at different viewport widths
-- [ ] Tab key navigates through all interactive elements
-- [ ] Screen reader can announce page content (aria-labels on landmarks)
+- [x] Empty state renders when API returns empty arrays
+- [x] Sidebar collapse/expand works at different viewport widths
+- [x] Tab key navigates through all interactive elements
+- [x] Screen reader can announce page content (aria-labels on landmarks)
 
 **Commit:** `feat(polish): add empty states, responsive sidebar, and accessibility`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
