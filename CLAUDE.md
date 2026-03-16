@@ -1,48 +1,81 @@
 # webseed
 
-Automated CLI pipeline that finds Italian local businesses without websites on Google Maps, generates professional HTML sites with Claude AI, tests them locally, deploys to Vercel, creates personalized email drafts in Gmail for outreach, and tracks everything in a local TinyDB database.
+REST API backend that finds Italian local businesses without websites on Google Maps, generates professional HTML sites with Claude AI, tests them locally, deploys to Vercel, creates personalized email drafts in Gmail for outreach, and tracks everything in PostgreSQL. Real-time progress via WebSocket.
 
 > **Claude's role**: General-purpose helper for all things webseed — implementing features, fixing bugs, improving prompts, designing architecture, testing, product strategy, and anything else that evolves around webseed as a product and codebase.
 
 ## Tech Stack
 
 - **Python ≥3.11** — `src/` layout package, venv at `.venv/`, managed via `pyproject.toml` (`.python-version` pins 3.14 for dev)
+- **FastAPI** — REST API + WebSocket for real-time events
+- **PostgreSQL** — business data, settings (prompts + config), event log. Via SQLAlchemy 2.0 (sync) + Alembic migrations
 - **Google Maps Places API** (new v1) — business discovery + enrichment via `google-maps-places` SDK
 - **Claude Code CLI** — site generation, visual testing, HTML fixes, and email generation (via `claude --print` subprocess)
 - **Vercel CLI** — deployment (`npm i -g vercel`)
 - **Playwright MCP** — visual testing via Claude Code CLI (browser navigation, screenshots, DOM inspection)
 - **Playwright** (Python) — above-the-fold email screenshots only
-- **TinyDB** — local JSON-based state management (`webseed.json`)
 - **Gmail API** — OAuth-based draft creation with label management
+
+## Architecture
+
+Three-layer clean architecture:
+
+1. **Core** (business logic): `services.py` orchestrates pipeline steps. External services (Maps, Claude CLI, Vercel CLI, Gmail, Playwright) are concrete — no abstract ports for them.
+2. **Persistence**: `PersistencePort` protocol → `PostgresStore` implementation. `FileStoragePort` protocol → `LocalFileStorage` implementation.
+3. **Interface**: FastAPI REST API + WebSocket. Background tasks run sync service functions in thread pool.
+
+Key decisions:
+- **Core stays sync** — no async in business logic
+- **Prompts in DB** — stored in `settings` table (key prefix `prompt.*`), editable via API
+- **Config in DB** — business-tunable config in `settings` table (key prefix `config.*`). Secrets stay as env vars
+- **Auth** = API key via `X-API-Key` header (env var `WEBSEED_API_KEY`)
+- **Blacklist** consolidated into DB only (`status = 'opted_out'`)
+- **UUID v4** primary keys on all tables. `place_id` remains as unique business identifier from Google
 
 ## Project Structure
 
 ```
 webseed/                          (project root)
-├── pyproject.toml                (project metadata, dependencies, CLI entry point)
+├── pyproject.toml                (project metadata, dependencies)
 ├── .python-version               (3.14 — dev version)
 ├── .env / .env.example
 ├── CLAUDE.md
+├── alembic.ini                   (Alembic config)
+├── docker-compose.yml            (Postgres 16 for local dev)
+├── migrations/
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions/
+│       └── 0001_initial.py       (schema + seed prompts/config)
 └── src/
     └── webseed/                  (Python package)
         ├── __init__.py
-        ├── __main__.py           (python -m webseed entry)
-        ├── claude_cli.py          (Claude Code CLI subprocess helper)
-        ├── pipeline.py           (CLI entry point, orchestrates all steps)
-        ├── store.py              (TinyDB data store)
-        ├── maps.py               (Google Places search, enrichment, photo download)
-        ├── generator.py          (Claude Code CLI HTML generation)
-        ├── utils.py              (shared helpers: atomic_write)
-        ├── deployer.py           (Vercel deploy under shared 'webseed' project)
-        ├── tester.py             (Visual testing via Claude CLI + email screenshots)
-        ├── emailer.py            (Gmail draft creation + Claude email gen)
-        └── prompts/
-            ├── site_gen.txt      (Italian site generation user prompt)
-            ├── site_gen_system.txt (site generation system prompt)
-            ├── code_review.txt   (HTML code review QA checklist)
-            ├── visual_test.txt   (QA checklist for Playwright visual testing)
-            ├── fix_html.txt      (HTML fix prompt)
-            └── email_gen.txt     (Italian email generation prompt)
+        ├── __main__.py           (uvicorn entrypoint)
+        ├── models.py             (BusinessData, PipelineStatus, BusinessRecord, PipelineEvent)
+        ├── ports.py              (PersistencePort, FileStoragePort, EventCallback)
+        ├── services.py           (pipeline orchestration — all run_* functions)
+        ├── storage.py            (LocalFileStorage + atomic_write)
+        ├── maps.py               (Google Places search, enrich, scoring, safe_name)
+        ├── generator.py          (Claude CLI HTML generation)
+        ├── tester.py             (Claude CLI code review, visual test, fix, screenshot)
+        ├── deployer.py           (Vercel CLI deployment)
+        ├── emailer.py            (Claude CLI email gen + Gmail drafts)
+        ├── claude_cli.py         (Claude subprocess wrapper)
+        ├── db/
+        │   ├── __init__.py
+        │   ├── tables.py         (SQLAlchemy ORM models)
+        │   └── store.py          (PostgresStore implements PersistencePort)
+        └── api/
+            ├── __init__.py
+            ├── app.py            (FastAPI factory, lifespan, test page)
+            ├── auth.py           (API key dependency)
+            ├── ws.py             (WebSocket manager + sync-to-async bridge)
+            ├── deps.py           (FastAPI dependencies)
+            └── routers/
+                ├── __init__.py
+                ├── pipeline.py   (POST /pipeline/* endpoints)
+                ├── businesses.py (Business CRUD + management)
+                └── settings.py   (Prompts + config CRUD)
 ```
 
 ## Pipeline Flow
@@ -51,198 +84,181 @@ webseed/                          (project root)
 Search (Maps) → Enrich (Place Details + Photos) → Generate (Claude) → Test (Code Review + optional Playwright) → Deploy (Vercel) → Email (Claude+Gmail Draft)
 ```
 
-Each step is independent and resumable. State is tracked per-business in TinyDB with status progression:
+Each step is independent and resumable. State is tracked per-business in PostgreSQL with status progression:
 `searched` → `enriched` → `generated` → `tested` → `deployed` → `email_queued`
 
-Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, `error_email`. Special: `opted_out` (blacklisted). `emailed` is a valid reset target but not currently set by the pipeline.
+Running statuses: `running_enrich`, `running_generate`, `running_test`, `running_deploy`, `running_email` (set at step start, reset on crash recovery).
+
+Error statuses: `error_enrich`, `error_generate`, `error_test`, `error_deploy`, `error_email`. Special: `opted_out` (blacklisted).
 
 ## Module Map
 
 | File | Role |
 |------|------|
-| `src/webseed/pipeline.py` | CLI entry point with subcommands (`search`, `enrich`, `generate`, `test`, `deploy`, `email`, `run` + management). Orchestrates all pipeline steps |
-| `src/webseed/claude_cli.py` | `run_claude_cli()` subprocess helper + `extract_json_result()` JSON parser + `get_timeout()` env-based timeout reader. Shared by generator, tester, and emailer |
-| `src/webseed/utils.py` | Shared utilities — `atomic_write()` for crash-safe file writes (used by generator and tester) |
-| `src/webseed/store.py` | TinyDB data store — open/upsert/query businesses, status updates, blacklist management |
-| `src/webseed/maps.py` | Stage 1 search (cheap discovery), Stage 2 enrichment (`enrich_business()`), photo download. Returns `BusinessData` dataclasses |
-| `src/webseed/generator.py` | Builds prompt from template + business data, calls Claude Code CLI, writes single-file `index.html` with inline CSS/JS |
-| `src/webseed/deployer.py` | Deploy to Vercel under a single `webseed` project. Each business gets a unique public deployment URL |
-| `src/webseed/tester.py` | Visual testing via Claude Code CLI + Playwright MCP, HTML fixes, and email screenshot capture (Python Playwright) |
-| `src/webseed/emailer.py` | Gmail API auth, Claude Code CLI email generation, MIME draft creation with inline screenshot |
-| `src/webseed/prompts/site_gen.txt` | Italian-language user prompt template for site generation |
-| `src/webseed/prompts/site_gen_system.txt` | System prompt for site generation |
-| `src/webseed/prompts/code_review.txt` | HTML code review QA checklist (text-only, no browser) |
-| `src/webseed/prompts/visual_test.txt` | QA checklist prompt for Playwright visual testing |
-| `src/webseed/prompts/fix_html.txt` | HTML fix prompt template |
-| `src/webseed/prompts/email_gen.txt` | Italian-language prompt template for email generation (outputs JSON) |
+| `models.py` | `PipelineStatus` enum, `BusinessData` dataclass, `BusinessRecord` dataclass, `PipelineEvent` dataclass |
+| `ports.py` | `PersistencePort` and `FileStoragePort` protocols, `EventCallback` type alias |
+| `services.py` | All orchestration: `run_search`, `run_enrich`, `run_generate`, `run_test`, `run_deploy`, `run_email`, `run_pipeline` + management functions |
+| `storage.py` | `LocalFileStorage` implementing `FileStoragePort`, `atomic_write()` |
+| `maps.py` | Stage 1 search, Stage 2 enrichment, photo download, lead scoring, `safe_name()` |
+| `generator.py` | Builds prompt from template + business data, calls Claude CLI, writes `index.html` via `FileStoragePort` |
+| `tester.py` | Code review, visual test, HTML fix, email screenshot — all via `FileStoragePort` |
+| `deployer.py` | Deploy to Vercel via `FileStoragePort`, URL extraction |
+| `emailer.py` | Gmail OAuth, Claude CLI email generation, MIME draft creation |
+| `claude_cli.py` | `run_claude_cli()` subprocess helper + JSON parser + timeout reader |
+| `db/tables.py` | SQLAlchemy ORM: `BusinessRow`, `SettingRow`, `EventLogRow` |
+| `db/store.py` | `PostgresStore` implementing `PersistencePort` |
+| `api/app.py` | `create_app()` factory, lifespan (crash recovery), WebSocket endpoint, test page |
+| `api/auth.py` | `require_api_key` FastAPI dependency |
+| `api/ws.py` | `WebSocketManager`, `make_event_callback()` sync-to-async bridge |
+| `api/deps.py` | `get_store()`, `get_file_storage()` FastAPI dependencies |
+| `api/routers/pipeline.py` | 7 POST endpoints, all BackgroundTasks |
+| `api/routers/businesses.py` | Business CRUD + management + CSV export |
+| `api/routers/settings.py` | Prompts + config CRUD |
 
-## CLI Usage
+## Running the Server
 
-### Installation
-
-```bash
-pip install -e .     # editable install from project root
-```
-
-### Pipeline Subcommands
+### Setup
 
 ```bash
-# 1. Search — find businesses on Maps, save to DB (Stage 1 only, cheap)
-webseed search --location "Milano, Italy" --query "ristorante" --limit 5
-
-# 2. Enrich — Place Details + photo download (place_ids required)
-webseed enrich PLACE_ID "nome"         # by place_id or name
-webseed enrich PLACE_ID --only-media   # skip Place Details, only download photos
-
-# 3. Generate — create HTML sites via Claude Code CLI (place_ids required)
-webseed generate PLACE_ID "nome"       # by place_id or name
-webseed generate PLACE_ID --model opus # use a specific model
-
-# 4. Test — code review + fix loop (local, no deploy needed) (place_ids required)
-webseed test PLACE_ID "nome"           # by place_id or name
-webseed test PLACE_ID --playwright     # also run Playwright visual test
-webseed test PLACE_ID --max-fix-iterations 1    # limit fix-retest cycles (default: 3)
-webseed test PLACE_ID --test-model sonnet       # model for testing (default: sonnet)
-
-# 5. Deploy — deploy to Vercel + email screenshot (place_ids required)
-webseed deploy PLACE_ID "nome"         # by place_id or name
-
-# 6. Email — generate personalized emails, create Gmail drafts (place_ids required)
-webseed email PLACE_ID "nome"          # by place_id or name
-webseed email PLACE_ID --model opus    # use a specific model
-
-# 7. Run — full pipeline (enrich → generate → test → deploy → email) for specific businesses
-webseed run PLACE_ID [PLACE_ID...]     # required: one or more identifiers
-webseed run "nome" --no-email          # skip email step
-webseed run PLACE_ID --model opus --test-model sonnet --max-fix-iterations 1
+pip install -e .                    # install dependencies
+docker compose up -d                # start Postgres
+alembic upgrade head                # run migrations (creates tables + seeds prompts/config)
 ```
 
-Alternative invocation: `python -m webseed <subcommand>`
-
-### Management Subcommands
+### Start
 
 ```bash
-webseed status                              # Table of all businesses + statuses
-webseed status --filter deployed             # Filter by status prefix
-webseed show PLACE_ID                        # Full detail for one business
-webseed stats                                # Summary counts per status
-webseed blacklist-add PLACE_ID [PLACE_ID...] # Add to blacklist
-webseed blacklist-remove PLACE_ID            # Remove from blacklist
-webseed blacklist-list                       # Show all blacklisted
-webseed reset PLACE_ID --to searched         # Reset status to re-process
-webseed db-delete PLACE_ID [PLACE_ID...]     # Remove from DB only (keeps files + Vercel)
-webseed db-delete --all --skip PLACE_ID      # Remove all except specified
-webseed hard-delete PLACE_ID [PLACE_ID...]   # Delete DB + files + Vercel deployment
-webseed hard-delete --blacklist PLACE_ID     # Same but keep entry as blacklisted
-webseed hard-delete -y PLACE_ID              # Skip confirmation
-webseed close PLACE_ID [PLACE_ID...]          # Blacklist + remove Vercel deploy (keep local files)
-webseed close -y PLACE_ID                     # Skip confirmation
-webseed export-csv --output results.csv      # Export DB to CSV
+python -m webseed                   # starts uvicorn on 0.0.0.0:8000
 ```
 
-### Global Flags
+Visit `http://localhost:8000/` for the WebSocket test console.
 
-- `--db` — TinyDB file path (default: `webseed.json`)
-- `--results-dir` — output directory (default: `results/`)
-- `-v` / `--verbose` — enable DEBUG logging
+## REST API Endpoints
+
+All require `X-API-Key` header except `GET /` (test page) and `WS /ws`.
+
+### Pipeline (all return `{"job_id": "uuid"}` immediately, run in background)
+- `POST /pipeline/search` — `{location, query, types, limit?, min_score?, grid_size?}`
+- `POST /pipeline/enrich` — `{place_ids, only_media?}`
+- `POST /pipeline/generate` — `{place_ids, model?}`
+- `POST /pipeline/test` — `{place_ids, playwright?, max_fix_iterations?, model?}`
+- `POST /pipeline/deploy` — `{place_ids}`
+- `POST /pipeline/email` — `{place_ids, model?}`
+- `POST /pipeline/run` — `{place_ids, model?, test_model?, max_fix_iterations?, no_email?, playwright?}`
+
+### Businesses
+- `GET /businesses` — list, filterable by `?status=`
+- `GET /businesses/stats` — `{searched: 5, enriched: 3, ...}`
+- `GET /businesses/{place_id}` — single detail
+- `PATCH /businesses/{place_id}/status` — `{to: "searched"}`
+- `DELETE /businesses/{place_id}` — remove from DB
+- `POST /businesses/{place_id}/blacklist` — set opted_out
+- `DELETE /businesses/{place_id}/blacklist` — remove from blacklist
+- `POST /businesses/hard-delete` — `{place_ids, keep_blacklisted?}`
+- `POST /businesses/close` — `{place_ids}`
+- `GET /businesses/export/csv` — CSV download
+
+### Settings (prompts + config unified)
+- `GET /settings` — list all, filterable by `?prefix=prompt` or `?prefix=config`
+- `GET /settings/{key}` — single
+- `PUT /settings/{key}` — `{value, description?}`
+
+### WebSocket
+- `WS /ws` — real-time event stream, auth via `?api_key=`
+
+### Test page
+- `GET /` — minimal HTML page with WebSocket connection for testing
+
+## WebSocket Event Format
+
+```json
+{
+  "event_type": "step_start|step_done|step_error|progress|cost|job_complete",
+  "job_id": "uuid",
+  "step": "search|enrich|generate|test|deploy|email",
+  "place_id": "ChIJ...",
+  "message": "Human-readable string",
+  "data": {"lead_score": 72, "cost_usd": 0.07},
+  "timestamp": "2026-03-15T10:30:00.000Z"
+}
+```
 
 ## Environment Variables
 
 Defined in `.env` (copy from `.env.example`):
 
+- `DATABASE_URL` — PostgreSQL connection string (default: `postgresql://webseed:webseed@localhost:5432/webseed`)
+- `RESULTS_DIR` — output directory for generated sites (default: `results`)
+- `PORT` — server port (default: `8000`)
+- `WEBSEED_API_KEY` — **required** — API key for authenticating REST requests
 - `GOOGLE_MAPS_API_KEY` — Google Cloud, **Places API (New)** enabled
 - `CLAUDE_CLI_PATH` — (optional) path to Claude Code CLI binary; auto-detected if on PATH
 - `VERCEL_CLI_PATH` — (optional) path to Vercel CLI binary; auto-detected if on PATH
 - `GMAIL_CREDENTIALS_FILE` — path to Gmail OAuth credentials JSON (default: `credentials.json`)
 - `GMAIL_TOKEN_FILE` — (optional) path to OAuth token file (default: `token.json`)
-- `GMAIL_LABEL_NAME` — (optional) Gmail label for drafts (default: `webseed-queue`)
-- `CONTACT_EMAIL` — **required for `email` step** — email address shown in email footer for data requests
-- `SENDER_NAME` — (optional) sender display name in emails (default: `Edoardo di WebSeed`)
 - `CLAUDE_TIMEOUT_GENERATE` — (optional) Claude CLI timeout in seconds for generation (default: `120`)
 - `CLAUDE_TIMEOUT_TEST` — (optional) Claude CLI timeout in seconds for testing (default: `120`)
 - `CLAUDE_TIMEOUT_EMAIL` — (optional) Claude CLI timeout in seconds for email gen (default: `180`)
 - `VERCEL_PROJECT_NAME` — (optional) Vercel project name for deployments (default: `webseed`)
 
+Config values like `contact_email`, `sender_name`, `default_model`, `gmail_label_name` etc. are stored in the DB `settings` table (key prefix `config.*`) and editable via API.
+
 ## Auth Notes
 
-- **Claude Code CLI**: Used for all AI steps (site generation, visual testing, HTML fixes, email generation). Handles its own auth — no API key needed
-- **Gmail API**: OAuth2 desktop app flow. First run of `email` step opens browser for consent → saves `token.json`. Scopes: `gmail.compose`, `gmail.labels`, `gmail.modify`
+- **API**: Simple API key via `X-API-Key` header. Set `WEBSEED_API_KEY` env var.
+- **Claude Code CLI**: Used for all AI steps. Handles its own auth — no API key needed
+- **Gmail API**: OAuth2 desktop app flow. First run of email step opens browser for consent → saves `token.json`. Scopes: `gmail.compose`, `gmail.labels`, `gmail.modify`
 - **Gmail setup**: GCP Console → Enable Gmail API → OAuth consent screen → Credentials → Desktop app → Download `credentials.json`
+
+## Database
+
+PostgreSQL with 3 tables:
+- `businesses` — one row per business, all fields + status + metadata. UUID v4 PK, `place_id` unique index.
+- `settings` — key-value store for prompts (`prompt.*`) and config (`config.*`). Seeded by initial migration.
+- `event_log` — pipeline events for debugging/audit. UUID v4 PK, indexed by `job_id` and `timestamp`.
+
+Crash recovery: on server startup, all `running_*` statuses are reset to corresponding `error_*` statuses.
 
 ## State Management
 
-- **TinyDB** (`webseed.json`): local JSON database, one document per business with all fields + status
-- **Blacklist**: dual — `blacklist.txt` (local file, one place_id per line) + DB entries with `opted_out` status
+- **PostgreSQL**: business data, pipeline status, prompts, config, event log
+- **Blacklist**: DB only — `status = 'opted_out'`
 - **Deduplication**: cross-run by `place_id`. Existing businesses get info updated (rating, reviews) but skip regeneration
 - **Error tracking**: status like `error_deploy` + `error_detail` field with message
 
-## Test Flow
+## Code Conventions
 
-1. `code_review()` — Claude Code CLI analyzes `index.html` source code against QA checklist (text-only, no browser)
-2. (optional) `visual_test()` — Claude Code CLI + Playwright MCP navigates local file, takes screenshots, inspects DOM. Enabled with `--playwright`
-3. Fix loop (if test fails) — `fix_html()` sends issues + current HTML to Claude Code CLI, rewrites `index.html`, retests. Max iterations configurable via `--max-fix-iterations` (default 3)
-
-## Deploy Flow
-
-1. `deploy()` — all sites deploy under a single `webseed` Vercel project (no `--prod`). Each deployment gets a unique permanent public URL
-2. `capture_email_screenshot()` — 1280x600 above-the-fold screenshot for email via Python Playwright (non-fatal on failure)
-3. The public deployment URL is saved in the DB and used in outreach emails
-
-## Email Flow
-
-1. Claude generates personalized Italian email (subject + body_html) per business
-2. Email includes: greeting, compliment on reviews, site link, pricing (€299 + €9/mo), CTA, minimal legal footer
-3. Gmail draft created with inline above-the-fold screenshot, labeled `webseed-queue`
-4. User reviews drafts in Gmail and sends manually
+- Language: Python, snake_case functions, UPPERCASE constants
+- Package uses absolute imports (`from webseed.models import BusinessData`)
+- UI text and prompt templates are in Italian
+- `BusinessData` dataclass (defined in `src/webseed/models.py`) is the shared data model across modules
+- `safe_name()` (public, in `src/webseed/maps.py`) is the shared slug function
+- Prompts stored in DB `settings` table, loaded via `store.get_setting("prompt.*")`
+- Prompts use `.format()` with `{{double braces}}` for literal curly braces in templates. NEVER switch to `.replace()`
+- Generated HTML strips markdown code fences that Claude may add
+- Error handling: try/except per business in each step, failures logged but don't stop the batch
+- **Pyright strict mode** enabled (`pyproject.toml`) — all code must pass strict type checking
+- Legacy Places API field names: use `photo` not `photos`, `type` not `types`
 
 ## Search Behavior
 
 - **Stage 1 only (cheap)**: `search` discovers candidates via Nearby + Text Search on a grid. No Place Details calls — enrichment is a separate step
-- **Pre-scoring**: candidates ranked by `_compute_pre_score()` using Stage 1 fields (rating, review count, business status, category tier). Max 60 points. Filter with `--min-score`
-- **Grid tiling**: `--grid-size 3` (default) divides the area into 9 cells with ~20% overlap for broader coverage
-- **`--limit` counts only new businesses**: businesses already in the DB or blacklist are skipped and don't count toward the limit
+- **Pre-scoring**: candidates ranked by `_compute_pre_score()` using Stage 1 fields (rating, review count, business status, category tier). Max 60 points
+- **Grid tiling**: grid_size 3 (default) divides the area into 9 cells with ~20% overlap for broader coverage
 - Duplicate places deduplicated by `place_id` within run; known place_ids skipped
 
 ## Enrich Behavior
 
 - **Place Details** ($0.025/call): fetches phone, photos, reviews, opening hours, editorial summary, price level, payment options
 - **Photo download**: downloads up to 3 Google Maps photos to `results/<name>/img/`
-- **Lead scoring**: full `_compute_lead_score()` (0-100) on 8 signals including enrichment-only data (price level, opening hours, review recency, photos)
+- **Lead scoring**: full `_compute_lead_score()` (0-100) on 8 signals
 - **Website double-check**: if Place Details reveals a website, business is flagged and skipped
-- **`--only-media`**: skip Place Details call, only download photos (useful for re-downloading)
 
 ## Output
 
-- `webseed.json` — TinyDB database with all business data and pipeline state
+- PostgreSQL database with all business data and pipeline state
 - `results/<business_name>/` — `index.html`, `vercel.json`, `img/` with downloaded photos
-- `results/screenshots/` — smoke test screenshots + email preview screenshots
-
-## Code Conventions
-
-- Language: Python, snake_case functions, UPPERCASE constants
-- Package uses absolute imports (`from webseed import maps`, `from webseed.maps import safe_name`)
-- UI text and prompt templates are in Italian
-- `BusinessData` dataclass (defined in `src/webseed/maps.py`) is the shared data model across modules
-- `safe_name()` (public, in `src/webseed/maps.py`) is the shared slug function — used by generator.py, pipeline.py, and maps.py
-- Photo download falls back to Unsplash when Maps photos are unavailable; `fallback_unsplash_url`, `photo_paths`, and `has_photos` are stored in DB
-- All prompts are externalized in `src/webseed/prompts/` as `.txt` files — no hardcoded prompt text in Python code
-- Prompts are loaded via `_load_prompt()` in pipeline.py and passed as parameters to modules
-- Generated HTML strips markdown code fences that Claude may add
-- Error handling: try/except per business in each step, failures logged but don't stop the batch
-- **Pyright strict mode** enabled (`pyproject.toml`) — all code must pass strict type checking
-- Legacy Places API field names: use `photo` not `photos`, `type` not `types`
-- **Identifier resolution**: most commands accept place_ids or partial business names (case-insensitive substring match via `store.resolve_identifier()`). Ambiguous matches prompt the user to be more specific
-
-## Testing
-
-The `test` step runs locally on generated HTML (no deployment needed):
-
-1. **Code review** (default) — Claude Code CLI analyzes HTML source against QA checklist. Text-only, no browser.
-2. **Playwright visual test** (with `--playwright`) — Claude Code CLI + Playwright MCP opens local file, takes screenshots, inspects DOM, checks console errors.
-
-Both report issues as structured JSON with severity levels (critical/major/minor). If issues are found, Claude Code CLI fixes the HTML and retests (up to `--max-fix-iterations` cycles, default 3).
-
-Email screenshots (1280x600 above-the-fold) are captured during `deploy` step via Python Playwright.
+- `results/screenshots/` — email preview screenshots
 
 ## Cost
 
@@ -252,5 +268,4 @@ Email screenshots (1280x600 above-the-fold) are captured during `deploy` step vi
 - Visual test: ~$0.05-0.10 per test call (Sonnet via Claude Code CLI)
 - Fix: ~$0.03-0.05 per fix call
 - Worst case per business (with 3 test-fix cycles): ~$0.43-0.73
-- With `--no-test`: ~$0.10 per site (enrich + generation only)
 - Email: ~$0.03 per email (via Claude Code CLI)

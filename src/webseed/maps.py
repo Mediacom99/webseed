@@ -6,9 +6,8 @@ import logging
 import os
 import random
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 from collections.abc import Callable
 
 import requests
@@ -18,6 +17,9 @@ from google.maps.places_v1 import PlacesClient
 from google.maps.places_v1.types import places_service, geometry
 from google.maps.places_v1.types import place as place_types
 from google.type import latlng_pb2
+
+from webseed.models import BusinessData, PipelineEvent
+from webseed.ports import EventCallback, FileStoragePort
 
 log = logging.getLogger(__name__)
 
@@ -77,33 +79,6 @@ _MID_TIER_CATEGORIES: set[str] = {
     "car_repair", "florist", "pet_store", "clothing_store",
     "veterinary_care", "ice_cream_shop",
 }
-
-
-@dataclass
-class BusinessData:
-    name: str
-    place_id: str
-    address: str
-    phone: Optional[str]
-    rating: float
-    reviews: int
-    category: str
-    maps_url: str
-    has_photos: bool
-    photo_paths: list[str]
-    fallback_unsplash_url: str
-    photo_refs: list[str] = field(default_factory=lambda: list[str]())  # Places API photo resource names for deferred download
-    # New fields for lead scoring & enrichment (all defaulted for backward compat)
-    lead_score: int = 0
-    price_level: Optional[str] = None
-    business_status: str = "OPERATIONAL"
-    primary_type: Optional[str] = None
-    types: Optional[list[str]] = None
-    has_opening_hours: bool = False
-    opening_hours_summary: Optional[str] = None
-    accepts_credit_cards: Optional[bool] = None
-    editorial_summary: Optional[str] = None
-    review_texts: Optional[list[str]] = None
 
 
 def safe_name(name: str) -> str:
@@ -546,9 +521,10 @@ def enrich_business(
     name: str,
     category: str,
     api_key: str,
-    results_dir: str,
+    file_storage: FileStoragePort,
     only_media: bool = False,
     existing_photo_refs: list[str] | None = None,
+    on_event: EventCallback | None = None,
 ) -> dict[str, Any]:
     """Enrich a single business with Place Details + photo download.
 
@@ -557,10 +533,11 @@ def enrich_business(
         name: Business display name (for directory naming).
         category: Primary category (for Unsplash fallback).
         api_key: Google API key.
-        results_dir: Base results directory (e.g. "results/").
+        file_storage: File storage adapter for photo downloads.
         only_media: If True, skip Place Details and only download photos.
             Website double-check is also skipped (it requires a Place Details call).
         existing_photo_refs: Photo refs already stored in DB (used with only_media).
+        on_event: Optional event callback for progress reporting.
 
     Returns:
         Dict of enriched fields to merge into DB. Includes "has_website": True
@@ -600,7 +577,7 @@ def enrich_business(
 
     # ── Photo download ──
     safe = safe_name(name)
-    img_dir = os.path.join(results_dir, safe, "img")
+    img_dir = file_storage.photo_dir(safe)
 
     if photo_refs:
         photo_paths = download_photos(photo_refs, api_key, img_dir)
@@ -629,6 +606,7 @@ def search(
     min_score: int = 0,
     grid_size: int = 3,
     skip_place_ids: set[str] | None = None,
+    on_event: EventCallback | None = None,
 ) -> list[BusinessData]:
     """Discover businesses without a website (Stage 1 only — no Place Details calls).
 
@@ -648,25 +626,29 @@ def search(
         skip_place_ids: Place IDs already known (DB + blacklist). Skipped so
             ``limit`` counts only genuinely new businesses.
     """
+    def _emit(msg: str) -> None:
+        if on_event is not None:
+            on_event(PipelineEvent(event_type="progress", job_id="", step="search", message=msg))
+
     # ── Geocode ──
     center_lat: float | None = None
     center_lng: float | None = None
     try:
         center_lat, center_lng = _geocode_city(api_key, location)
-        print(f"  Geocoded {location} → ({center_lat:.4f}, {center_lng:.4f})")
+        _emit(f"Geocoded {location} → ({center_lat:.4f}, {center_lng:.4f})")
     except (ValueError, requests.RequestException) as e:
         log.warning("Geocoding failed for '%s': %s. Falling back to text search only.", location, e)
-        print(f"  Geocoding failed for '{location}', using text search only")
+        _emit(f"Geocoding failed for '{location}', using text search only")
 
     # ── Stage 1: Discovery ──
-    print(f"\n  Stage 1: Discovery (types: {types})")
+    _emit(f"Stage 1: Discovery (types: {types})")
     seen_ids: set[str] = set()
     candidates: list[place_types.Place] = []
 
     # 1a. Grid-based Nearby Search
     if center_lat is not None and center_lng is not None:
         grid = _generate_grid(center_lat, center_lng, grid_size)
-        print(f"  Grid: {grid_size}x{grid_size} = {len(grid)} cells")
+        _emit(f"Grid: {grid_size}x{grid_size} = {len(grid)} cells")
 
         for i, (lat, lng, radius) in enumerate(grid):
             try:
@@ -695,7 +677,7 @@ def search(
 
     for tq in text_queries:
         try:
-            print(f"  Text search: {tq}")
+            _emit(f"Text search: {tq}")
             places = _search_text(api_key, tq, location_bias=location_bias)
             new = 0
             for p in places:
@@ -722,14 +704,14 @@ def search(
             continue
         filtered.append(p)
 
-    print(f"\n  Stage 1 complete: {len(candidates)} found, {len(filtered)} without website")
+    _emit(f"Stage 1 complete: {len(candidates)} found, {len(filtered)} without website")
 
     # ── Skip known place_ids ──
     _skip = skip_place_ids or set()
     eligible = [p for p in filtered if p.id not in _skip]
     skipped_known = len(filtered) - len(eligible)
     if skipped_known:
-        print(f"  Skipping {skipped_known} already-known businesses")
+        _emit(f"Skipping {skipped_known} already-known businesses")
 
     # ── Pre-score and rank ──
     scored: list[tuple[int, place_types.Place]] = [
@@ -765,7 +747,7 @@ def search(
             primary_type=primary_type or None,
         )
         businesses.append(biz)
-        print(f"  [{len(businesses)}] {biz.name} — pre-score:{pre_score} rating:{biz.rating} reviews:{biz.reviews}")
+        _emit(f"[{len(businesses)}] {biz.name} — pre-score:{pre_score} rating:{biz.rating} reviews:{biz.reviews}")
 
         if len(businesses) >= limit:
             break

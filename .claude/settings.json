@@ -1,0 +1,10 @@
+{
+"permissions": {
+    "allow": [
+      "Bash(*)"
+    ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
+  }
+}

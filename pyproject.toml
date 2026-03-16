@@ -11,14 +11,15 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "playwright>=1.40.0",
     "requests>=2.31.0",
-    "tinydb>=4.8.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.12.0",
     "google-api-python-client>=2.100.0",
     "google-auth-oauthlib>=1.2.0",
     "google-maps-places>=0.1.0,<1.0.0",
 ]
-
-[project.scripts]
-webseed = "webseed.pipeline:main"
 
 [tool.pyright]
 typeCheckingMode = "strict"

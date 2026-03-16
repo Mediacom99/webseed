@@ -1,5 +1,7 @@
 """Vercel deployment — all sites under a single 'webseed' project."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -7,8 +9,7 @@ import re
 import shutil
 import subprocess
 
-from webseed.utils import atomic_write
-
+from webseed.ports import FileStoragePort
 log = logging.getLogger(__name__)
 
 
@@ -64,19 +65,20 @@ def remove_deployment(vercel_bin: str, url: str) -> bool:
     return result.returncode == 0
 
 
-def deploy(site_dir: str, vercel_bin: str) -> str:
+def deploy(file_storage: FileStoragePort, name_slug: str, vercel_bin: str) -> str:
     """Deploy to Vercel under the shared 'webseed' project. Returns the unique public deployment URL."""
+    site_dir = file_storage.site_dir(name_slug)
+
     # Write project name into vercel.json
-    vercel_json_path = os.path.join(site_dir, "vercel.json")
-    vercel_config = {}
-    if os.path.exists(vercel_json_path):
+    vercel_json_rel = f"{name_slug}/vercel.json"
+    vercel_config: dict[str, object] = {}
+    if file_storage.exists(vercel_json_rel):
         try:
-            with open(vercel_json_path, "r") as f:
-                vercel_config = json.load(f)
+            vercel_config = json.loads(file_storage.read_file(vercel_json_rel))
         except json.JSONDecodeError:
             vercel_config = {}
     vercel_config["name"] = os.getenv("VERCEL_PROJECT_NAME", "webseed")
-    atomic_write(vercel_json_path, json.dumps(vercel_config, indent=2) + "\n")
+    file_storage.write_file(vercel_json_rel, json.dumps(vercel_config, indent=2) + "\n")
 
     log.debug("Deploying: %s", site_dir)
 
@@ -95,7 +97,6 @@ def deploy(site_dir: str, vercel_bin: str) -> str:
         raise RuntimeError(f"Vercel deploy failed: {result.stderr}")
 
     # Extract the public URL from Vercel CLI output.
-    # Output lines may contain prefixes like "✅  Preview:" and suffixes like "[3s]".
     url = _extract_url(result.stdout)
     if not url:
         raise RuntimeError(

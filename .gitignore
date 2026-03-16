@@ -11,3 +11,4 @@ webseed.json
 .venv/
 dist/
 *.egg-info/
+worktrees
