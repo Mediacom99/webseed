@@ -360,33 +360,33 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/components/ui/tabs.tsx` — shadcn Tabs
 
 **Acceptance criteria:**
-- [ ] Run pipeline form lists businesses from API with checkboxes for selection
-- [ ] Full pipeline run submits selected place_ids + options to `POST /api/pipeline/run`
-- [ ] Individual step dropdown shows enrich/generate/test/deploy/email with step-specific fields
-- [ ] Submitting any form returns job_id and sets it as active job
-- [ ] Form disables submit when no businesses are selected
-- [ ] Toast confirms job submission or shows error
+- [x] Run pipeline form lists businesses from API with checkboxes for selection
+- [x] Full pipeline run submits selected place_ids + options to `POST /api/pipeline/run`
+- [x] Individual step dropdown shows enrich/generate/test/deploy/email with step-specific fields
+- [x] Submitting any form returns job_id and sets it as active job
+- [x] Form disables submit when no businesses are selected
+- [x] Toast confirms job submission or shows error
 
 **Testing:**
-- [ ] RunPipelineForm renders business list from mock API
-- [ ] Submit calls correct endpoint based on selected step
-- [ ] Validation prevents submission with empty place_ids
-- [ ] All 7 pipeline endpoints are callable from the form
+- [x] RunPipelineForm renders business list from mock API
+- [x] Submit calls correct endpoint based on selected step
+- [x] Validation prevents submission with empty place_ids
+- [x] All 7 pipeline endpoints are callable from the form
 
 **Commit:** `feat(pipeline): add run pipeline and individual step trigger forms`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
 ## HARD STOP — Checkpoint: Pipeline Runner complete
 **Verify before continuing:**
-- [ ] Search form submits and returns job_id
-- [ ] Pipeline flow nodes update in real-time via WebSocket
-- [ ] Activity feed streams events for active job
-- [ ] Business progress table shows per-business status
-- [ ] Run pipeline form selects businesses and triggers full run
-- [ ] Individual step triggers work (enrich, generate, test, deploy, email)
+- [x] Search form submits and returns job_id
+- [x] Pipeline flow nodes update in real-time via WebSocket
+- [x] Activity feed streams events for active job
+- [x] Business progress table shows per-business status
+- [x] Run pipeline form selects businesses and triggers full run
+- [x] Individual step triggers work (enrich, generate, test, deploy, email)
 
 ---
 

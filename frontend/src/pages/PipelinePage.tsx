@@ -5,8 +5,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PipelineFlow from "@/components/pipeline/PipelineFlow";
 import SearchForm from "@/components/pipeline/SearchForm";
+import RunPipelineForm from "@/components/pipeline/RunPipelineForm";
 import BusinessProgressTable from "@/components/pipeline/BusinessProgressTable";
 import LiveActivityFeed from "@/components/pipeline/LiveActivityFeed";
 import { usePipelineStatus } from "@/hooks/usePipelineStatus";
@@ -22,10 +24,21 @@ export default function PipelinePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Search</CardTitle>
+          <CardTitle>Run</CardTitle>
         </CardHeader>
         <CardContent>
-          <SearchForm onJobStarted={setActiveJobId} />
+          <Tabs defaultValue="search">
+            <TabsList>
+              <TabsTrigger value="search">Search</TabsTrigger>
+              <TabsTrigger value="pipeline">Run Pipeline</TabsTrigger>
+            </TabsList>
+            <TabsContent value="search">
+              <SearchForm onJobStarted={setActiveJobId} />
+            </TabsContent>
+            <TabsContent value="pipeline">
+              <RunPipelineForm onJobStarted={setActiveJobId} />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
