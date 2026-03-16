@@ -80,40 +80,39 @@ Always visible. Shows a thin bar with:
 - **Last event message**: single-line auto-updating text, e.g. "Enriched Trattoria Nonna"
 - Click anywhere on the bar to expand
 
-#### Expanded State (resizable via drag handle, default ~200px)
+#### Expanded State (resizable via drag handle, default ~250px)
 
 - **Tab bar**: filter events by scope
   - `[All]` — all events, no filter
-  - `[Job: <label> ●]` — one tab per active/recent job, using the human-readable label from `JobResponse`. Status indicator: `●` running, `✓` complete, `✗` had errors
-  - `[This Business]` — auto-appears on `/businesses/:placeId`, filters events by `place_id`
+  - `[Job: <short-uuid> ●]` — one tab per active/recent job, showing the first 8 chars of the job ID. Status indicator: `●` running, `✓` complete, `✗` had errors
 - **Event log**: scrollable list of events
   - Each row: `timestamp | event_type | step | message`
   - Color-coded by `event_type` (see [Status System](#9-status-system))
   - Auto-scrolls to bottom. Pauses auto-scroll when user scrolls up (like any log viewer). Resumes when user scrolls back to bottom.
-- **Clear button**: flushes the event buffer
-- **Drag handle**: top edge of panel, resize vertically
+- **Clear button**: flushes the event buffer and resets tab selection
+- **Drag handle**: top edge of panel, resize vertically (min 120px, max 500px)
 
 #### Contextual Auto-Filtering
 
-The bottom panel auto-filters based on current page context:
+The bottom panel auto-selects a tab based on current page context:
 
 | Current page | Auto-selected tab |
 |---|---|
-| `/search` | The job tab for the most recently triggered search/enrich job |
-| `/businesses/:placeId` | "This Business" (filters by `place_id`) |
+| `/search` | The most recent job tab (last job in event history) |
+| `/businesses/:placeId` | The most recent job tab that has events matching this `place_id` |
 | `/` (Dashboard) | "All" |
 | `/businesses` | "All" |
 | `/settings` | "All" |
 
-User can always manually switch tabs to override the auto-filter.
+User can always manually switch tabs to override the auto-filter. Manual selection resets when the auto-tab changes (e.g., navigating to a different page).
 
 #### Implementation Notes
 
-- The panel is a `position: fixed` element at the bottom of the viewport
-- Main content area has `padding-bottom` matching the panel height (including collapsed state)
-- Use shadcn `resizable` component for the drag-to-resize handle
+- The panel is a flex child of `AppLayout`, not `position: fixed` — the main content area and panel share the screen vertically
+- Resize is implemented via custom mouse/touch event handlers (not shadcn `resizable`)
 - Event buffer is capped at 200 events (existing behavior in WebSocket store)
-- Job labels come from the enhanced `JobResponse` (see [Backend Dependencies](#12-backend-dependencies)). Until backend provides labels, frontend can fall back to `"Job <short-uuid>"`
+- Events and active jobs are persisted to `sessionStorage` (key `webseed-ws-events`) so they survive page navigations
+- Job labels use the first 8 characters of the job UUID (e.g., `"a1b2c3d4"`). Backend `JobResponse` does not yet include a human-readable label
 
 ---
 
@@ -136,7 +135,7 @@ The command center. Answers three questions at a glance: Where are my businesses
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Dashboard                         [New Search] [View Errors] │
+│  Dashboard                                                    │
 ├──────────────────────────────────────────────────────────────┤
 │                                                               │
 │  Pipeline Funnel                                              │
@@ -146,6 +145,7 @@ The command center. Answers three questions at a glance: Where are my businesses
 │  └──────┘   └──────┘   └──────┘   └──────┘   └──────┘   └──────┘ │
 │                                                               │
 │  Errors: 4 (clickable)  ·  Opted Out: 3  ·  Total: 47       │
+│                                     [New Search] [View Errors] │
 │                                                               │
 ├───────────────────────┬──────────────────────────────────────┤
 │  Active Jobs          │  Stats                                │
@@ -182,7 +182,7 @@ Below the funnel:
 
 #### Quick Action Buttons
 
-Top-right of the page header:
+Inline with the summary row (right side, wrapped on small screens):
 - **New Search** — navigates to `/search`
 - **View Errors** — navigates to `/businesses?status=errors`
 
@@ -551,8 +551,9 @@ Only shows when `vercel_url` is non-empty.
 | Field | Source | Notes |
 |---|---|---|
 | Vercel URL | `vercel_url` | Clickable external link |
-| Screenshot | `site_screenshot_path` | Thumbnail image of the generated site. Requires backend to serve the file. |
 | Email Sent | `email_sent_at` | Formatted datetime or "Not sent" |
+
+> **Not yet implemented:** Screenshot thumbnail from `site_screenshot_path`. Requires backend static file serving endpoint.
 
 #### Testing Card
 Only shows when `test_iterations > 0`.
@@ -715,12 +716,10 @@ Same as current: `AuthGuard` calls `connect(apiKey)` on mount, `disconnect()` on
 
 ### Store Shape
 
-Keep the existing `useWebSocketStore` shape with these additions:
-
 ```
 {
   isConnected: boolean
-  events: PipelineEvent[]          // capped at 200
+  events: PipelineEvent[]          // capped at 200, persisted to sessionStorage
   activeJobs: Map<string, ActiveJob>
 
   connect(apiKey): void
@@ -730,11 +729,12 @@ Keep the existing `useWebSocketStore` shape with these additions:
 
 ActiveJob {
   jobId: string
-  label: string           // NEW — from enhanced JobResponse
   startedAt: string
   currentStep?: string
 }
 ```
+
+The WebSocket singleton lives outside the Zustand store (module-level variable) to avoid React Strict Mode double-connection issues. State is persisted to `sessionStorage` (key `webseed-ws-events`) so events and active jobs survive page navigations within the same session.
 
 ### Refetch Strategy
 
@@ -761,23 +761,40 @@ All filtering is client-side on the existing event buffer:
 
 ## 11. Data Typing Strategy
 
-### Current Problem
+### Current State
 
-The OpenAPI spec uses `additionalProperties: true` for business responses. Orval generates `Record<string, unknown>`. The frontend casts everywhere with `as never` and `as Record<string, unknown>`.
+Manual TypeScript interfaces are defined in `frontend/src/types/index.ts`. Orval generates hooks and model types from `openapi.json`, but the generated models use `Record<string, unknown>` because the backend lacks typed Pydantic response models.
 
-### Solution
+**Known limitation:** Components bypass both manual types and Orval types, casting API responses through `as Record<string, unknown>` or `as never` to access fields. This is a type-safety gap — runtime errors from missing/renamed fields won't be caught at compile time.
+
+### Goal (not yet achieved)
 
 1. **Backend**: Add Pydantic response models (`BusinessSummary`, `BusinessDetail`, `StatsResponse`, `SettingItem`) to all endpoints. This produces typed OpenAPI schemas.
 2. **Frontend**: Regenerate Orval hooks after backend change. Orval produces real TypeScript interfaces.
 3. **Frontend**: Remove all `as never`, `as Record<string, unknown>` casts. Use the generated types directly.
 4. **Frontend**: All components consume typed data — missing fields are caught at compile time by TypeScript strict mode.
 
-Until the backend provides typed responses, define **manual TypeScript interfaces** in the frontend that mirror the expected response shape. This unblocks frontend development while the backend catches up.
-
-### Key Interfaces (manual, until Orval generates them)
+### Key Interfaces (defined in `frontend/src/types/index.ts`)
 
 ```typescript
 interface BusinessSummary {
+  id: string
+  place_id: string
+  name: string
+  address: string
+  category: string
+  rating: number
+  reviews: number
+  lead_score: number
+  status: string
+  error_detail: string
+  vercel_url: string
+  primary_type: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface BusinessDetail {
   id: string
   place_id: string
   name: string
@@ -789,29 +806,29 @@ interface BusinessSummary {
   category: string
   maps_url: string
   has_photos: boolean
+  photo_paths: string[]
+  photo_refs: string[]
+  fallback_unsplash_url: string
   lead_score: number
   price_level: string | null
   business_status: string
   primary_type: string | null
-  status: string
-  error_detail: string
-  vercel_url: string
-  created_at: string
-  updated_at: string
-}
-
-interface BusinessDetail extends BusinessSummary {
-  photo_paths: string[]
   types: string[] | null
   has_opening_hours: boolean
   opening_hours_summary: string | null
   accepts_credit_cards: boolean | null
   editorial_summary: string | null
   review_texts: string[] | null
-  test_iterations: number
-  test_issues: Array<Record<string, unknown>>
+  status: string
+  error_detail: string
+  vercel_url: string
   site_screenshot_path: string
   email_sent_at: string
+  test_iterations: number
+  test_issues: Record<string, unknown>[]
+  run_id: string
+  created_at: string
+  updated_at: string
 }
 
 interface StatsResponse {
@@ -827,17 +844,15 @@ interface SettingItem {
 
 interface JobResponse {
   job_id: string
-  label: string    // human-readable, e.g. "Search: ristoranti, Milano"
-  step: string     // pipeline step name
 }
 
 interface PipelineEvent {
   event_type: 'step_start' | 'step_done' | 'step_error' | 'progress' | 'cost' | 'job_complete'
   job_id: string
   step: 'search' | 'enrich' | 'generate' | 'test' | 'deploy' | 'email'
-  place_id: string
+  place_id?: string       // optional — not all events target a specific business
   message: string
-  data: Record<string, unknown>
+  data?: Record<string, unknown>  // optional — only present on some event types
   timestamp: string
 }
 ```
@@ -846,19 +861,19 @@ interface PipelineEvent {
 
 ## 12. Backend Dependencies
 
-Changes required in the backend before or during frontend implementation. Tracked in detail in `BACKEND_TODO.md`.
+Changes needed in the backend to improve frontend functionality.
 
-### Required (blocks frontend)
-
-| Change | Why | Priority |
-|---|---|---|
-| **Typed Pydantic response models** | Orval generates `Record<string, unknown>` without them. Frontend can use manual interfaces as a stopgap. | High |
-| **Business detail endpoint: expose all fields** | Detail page needs enrichment data, test data, screenshot path, email_sent_at. Currently stripped by `_record_to_dict`. | High |
-| **JobResponse enhancement** | Bottom panel needs job labels. Without this, falls back to `"Job <short-uuid>"`. | Medium |
-
-### Future (nice-to-have)
+### Unresolved
 
 | Change | Why | Priority |
 |---|---|---|
+| **Typed Pydantic response models** | Orval generates `Record<string, unknown>` without them. Frontend works around this with `as Record<string, unknown>` casts, but loses type safety. | High |
+| **JobResponse enhancement** | Bottom panel shows truncated UUIDs as job labels. Adding a human-readable `label` field (e.g., "Search: ristoranti, Milano") and `step` field to the response would improve UX. | Medium |
+| **Static file serving for screenshots** | Business detail page could show a site thumbnail from `site_screenshot_path`, but backend doesn't serve static files from `results/` | Low |
 | **Aggregate stats endpoint** | Dashboard avg lead score, avg rating, time-based metrics | Low |
-| **Static file serving for screenshots** | Business detail page site thumbnail from `site_screenshot_path` | Low |
+
+### Resolved
+
+| Change | Status |
+|---|---|
+| Business detail endpoint: expose all fields | Done — all enrichment data, test data, screenshot path, email_sent_at available |

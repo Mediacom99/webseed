@@ -1,4 +1,6 @@
-# webseed — Frontend PRD
+# webseed — Frontend PRD (SUPERSEDED)
+
+> **This PRD has been superseded by [`PRD_REDESIGN.md`](PRD_REDESIGN.md).** The redesign removed the `/pipeline` page (Epic 4), split its functionality across Search, Businesses, and Business Detail pages, and added a global bottom panel for real-time events. All components from Epic 4 (React Flow, PipelineFlow, PipelineNode, PipelineEdge, LiveActivityFeed, RunPipelineForm, BusinessProgressTable, PipelinePage) have been deleted. This document is kept for historical reference only.
 
 ## Overview
 Internal dashboard for operating the webseed pipeline — a system that finds Italian local businesses without websites on Google Maps, generates professional HTML sites with Claude AI, deploys them to Vercel, and creates Gmail outreach drafts. Built for a single operator/team who needs to monitor pipeline progress in real-time, manage discovered businesses, and tune prompts/config. React SPA with WebSocket-driven live updates.

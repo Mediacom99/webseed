@@ -14,10 +14,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - **Playwright** — E2E tests
 
 ## References
-- Spec: `FRONTEND_REDESIGN_UPDATE.md`
-- Architecture: `CLAUDE.md`
-- API: `openapi.json`
-- Backend TODO: `BACKEND_TODO.md`
+- Spec: `FRONTEND_REDESIGN_UPDATE.md` (in this folder)
+- Architecture: `../CLAUDE.md`
+- API: `../openapi.json`
+- Original PRD (superseded): `PRD.md`
 
 ---
 
@@ -43,14 +43,13 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Navigating to `/search` renders the placeholder SearchPage
 - [x] Navigating to `/pipeline` shows 404 / falls through (route removed)
 - [x] Sidebar shows: Dashboard, Search, Businesses, Settings, Logout
-- [x] `BusinessSummary`, `BusinessDetail`, `StatsResponse`, `SettingItem` interfaces exist in `types/index.ts`
-- [x] Health check page still works (`/health` or equivalent confirms API connectivity)
+- [x] `BusinessSummary`, `BusinessDetail`, `StatsResponse`, `SettingItem`, `JobResponse` interfaces exist in `types/index.ts`
 
 **Testing:**
-- [x] App renders without errors
-- [x] Route `/search` renders SearchPage
-- [x] Route `/pipeline` does not render PipelinePage
-- [x] Sidebar navigation links are correct
+- [ ] App renders without errors
+- [ ] Route `/search` renders SearchPage
+- [ ] Route `/pipeline` does not render PipelinePage
+- [ ] Sidebar navigation links are correct
 
 **Commit:** `feat(foundation): restructure routes and add typed interfaces for redesign`
 
@@ -86,10 +85,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Auto-scrolls to bottom; pauses when user scrolls up
 
 **Testing:**
-- [x] BottomPanel renders in collapsed state by default
-- [x] Clicking bar toggles expanded state
-- [x] Events from WebSocket store display in the log
-- [x] Clear button empties the event list
+- [ ] BottomPanel renders in collapsed state by default
+- [ ] Clicking bar toggles expanded state
+- [ ] Events from WebSocket store display in the log
+- [ ] Clear button empties the event list
 
 **Commit:** `feat(bottom-panel): add global event log with collapsed/expanded states`
 
@@ -106,21 +105,20 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - None (client-side filtering on existing event buffer)
 
 **Files to create/modify:**
-- `frontend/src/components/layout/BottomPanel.tsx` — add tab bar with All / per-job / This Business tabs; auto-filter logic based on current route
+- `frontend/src/components/layout/BottomPanel.tsx` — add tab bar with All / per-job tabs; auto-filter logic based on current route
 - `frontend/src/hooks/useBottomPanelFilter.ts` — hook that returns the auto-selected tab based on current route and recent job IDs
 
 **Acceptance criteria:**
 - [x] "All" tab shows all events (no filter)
-- [x] One tab per active/recent job, showing job ID (short) and status indicator (● running, ✓ complete, ✗ error)
-- [x] "This Business" tab auto-appears on `/businesses/:placeId`, filters events by `place_id`
-- [x] Auto-filter: `/search` → most recent search job tab; `/businesses/:placeId` → "This Business"; other pages → "All"
-- [x] User can manually switch tabs to override auto-filter
+- [x] One tab per active/recent job, showing short job ID (8 chars) and status indicator (● running, ✓ complete, ✗ error)
+- [x] Auto-filter: `/search` → most recent job tab; `/businesses/:placeId` → most recent job with events for that `place_id`; other pages → "All"
+- [x] User can manually switch tabs to override auto-filter; manual selection resets on route change
 
 **Testing:**
-- [x] Tab bar renders with "All" tab
-- [x] Job tabs appear when events with distinct job_ids arrive
-- [x] Selecting a job tab filters events to that job
-- [x] "This Business" tab filters by place_id on detail page
+- [ ] Tab bar renders with "All" tab
+- [ ] Job tabs appear when events with distinct job_ids arrive
+- [ ] Selecting a job tab filters events to that job
+- [ ] Auto-tab selects relevant job on business detail page
 
 **Commit:** `feat(bottom-panel): add tab filtering and contextual auto-filter`
 
@@ -152,10 +150,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Stats refetch on WebSocket `step_done` events (via TanStack Query invalidation)
 
 **Testing:**
-- [x] PipelineFunnel renders 6 nodes with correct labels
-- [x] Stats data populates node counts
-- [x] Quick action buttons navigate to correct routes
-- [x] Summary row renders error/opted-out/total counts
+- [ ] PipelineFunnel renders 6 nodes with correct labels
+- [ ] Stats data populates node counts
+- [ ] Quick action buttons navigate to correct routes
+- [ ] Summary row renders error/opted-out/total counts
 
 **Commit:** `feat(dashboard): add pipeline funnel and stats summary`
 
@@ -184,10 +182,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Two-column layout below the funnel (responsive: stacks on mobile)
 
 **Testing:**
-- [x] ActiveJobs renders "No active jobs" when store is empty
-- [x] ActiveJobs renders job entries when store has active jobs
-- [x] StatsCards computes percentages correctly from stats data
-- [x] Layout is two-column on desktop, stacked on mobile
+- [ ] ActiveJobs renders "No active jobs" when store is empty
+- [ ] ActiveJobs renders job entries when store has active jobs
+- [ ] StatsCards computes percentages correctly from stats data
+- [ ] Layout is two-column on desktop, stacked on mobile
 
 **Commit:** `feat(dashboard): add active jobs and stats panels`
 
@@ -219,10 +217,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Submit calls `POST /pipeline/search` and shows loading spinner on button
 
 **Testing:**
-- [x] SearchForm renders all required fields
-- [x] Submit is disabled when location or query is empty
-- [x] TypesMultiSelect renders grouped options and manages selection state
-- [x] Advanced options toggle shows/hides fields
+- [ ] SearchForm renders all required fields
+- [ ] Submit is disabled when location or query is empty
+- [ ] TypesMultiSelect renders grouped options and manages selection state
+- [ ] Advanced options toggle shows/hides fields
 
 **Commit:** `feat(search): add search form with types multi-select and advanced options`
 
@@ -254,10 +252,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Toast notification after enrichment: "N businesses sent to enrich — View in Businesses" with link
 
 **Testing:**
-- [x] Results table renders business rows from API
-- [x] Checkbox selection and Select All work correctly
-- [x] Enrich button triggers API call with correct place_ids
-- [x] Blacklist shows confirmation dialog before executing
+- [ ] Results table renders business rows from API
+- [ ] Checkbox selection and Select All work correctly
+- [ ] Enrich button triggers API call with correct place_ids
+- [ ] Blacklist shows confirmation dialog before executing
 
 **Commit:** `feat(search): add results table with enrich and blacklist actions`
 
@@ -291,10 +289,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Data refetches on WebSocket `step_done` events
 
 **Testing:**
-- [x] StatusFilterChips renders chips with correct counts
-- [x] Clicking a chip updates the displayed businesses
-- [x] Text search filters by name
-- [x] Row click navigates to detail page
+- [ ] StatusFilterChips renders chips with correct counts
+- [ ] Clicking a chip updates the displayed businesses
+- [ ] Text search filters by name
+- [ ] Row click navigates to detail page
 
 **Commit:** `feat(businesses): add status filter chips, text search, and enhanced table`
 
@@ -331,10 +329,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Overflow menu (⋯) contains "Export CSV" → triggers file download
 
 **Testing:**
-- [x] BulkActionBar renders with correct primary action for uniform selection
-- [x] Mixed selection shows multiple action buttons
-- [x] Confirmation dialogs appear for destructive actions
-- [x] CSV export triggers download
+- [ ] BulkActionBar renders with correct primary action for uniform selection
+- [ ] Mixed selection shows multiple action buttons
+- [ ] Confirmation dialogs appear for destructive actions
+- [ ] CSV export triggers download
 
 **Commit:** `feat(businesses): add smart bulk actions and CSV export`
 
@@ -374,10 +372,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Blacklist/Unblacklist toggle works; delete shows confirmation dialog
 
 **Testing:**
-- [x] PipelineGraph renders 6 nodes with correct states
-- [x] Next-step button triggers correct API call
-- [x] Business data loads from API
-- [x] Blacklist toggle calls correct endpoint
+- [ ] PipelineGraph renders 6 nodes with correct states
+- [ ] Next-step button triggers correct API call
+- [ ] Business data loads from API
+- [ ] Blacklist toggle calls correct endpoint
 
 **Commit:** `feat(business-detail): add header, pipeline graph, and per-business actions`
 
@@ -409,10 +407,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Metadata card: created_at, updated_at formatted timestamps
 
 **Testing:**
-- [x] Cards render only when relevant data is present (progressive disclosure)
-- [x] Contact card links work (tel, mailto, external)
-- [x] Error card reset dropdown calls status update API
-- [x] Searched-only business shows minimal cards; fully deployed business shows all
+- [ ] Cards render only when relevant data is present (progressive disclosure)
+- [ ] Contact card links work (tel, mailto, external)
+- [ ] Error card reset dropdown calls status update API
+- [ ] Searched-only business shows minimal cards; fully deployed business shows all
 
 **Commit:** `feat(business-detail): add info cards with progressive disclosure`
 
@@ -446,10 +444,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Per-row inline editing with Save button; description tooltip/text shown on focus
 
 **Testing:**
-- [x] Prompts load and display in correct groups
-- [x] Editing a prompt shows unsaved indicator
-- [x] Save button calls API and clears dirty state
-- [x] Config table renders all config settings with editable values
+- [ ] Prompts load and display in correct groups
+- [ ] Editing a prompt shows unsaved indicator
+- [ ] Save button calls API and clears dirty state
+- [ ] Config table renders all config settings with editable values
 
 **Commit:** `feat(settings): redesign with grouped prompts and inline config editing`
 
@@ -482,9 +480,9 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] Error boundaries catch rendering errors and show fallback UI
 
 **Testing:**
-- [x] Skeleton renders when query is in loading state
-- [x] Error state renders when query fails
-- [x] Retry button triggers refetch
+- [ ] Skeleton renders when query is in loading state
+- [ ] Error state renders when query fails
+- [ ] Retry button triggers refetch
 
 **Commit:** `feat(polish): add loading skeletons and error states for redesigned pages`
 
@@ -516,10 +514,10 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 - [x] All interactive elements have keyboard focus indicators and aria labels
 
 **Testing:**
-- [x] Empty states render when data arrays are empty
-- [x] Sidebar collapses correctly at breakpoints
-- [x] Tab/keyboard navigation works through major interactive elements
-- [x] No accessibility warnings from axe-core on key pages
+- [ ] Empty states render when data arrays are empty
+- [ ] Sidebar collapses correctly at breakpoints
+- [ ] Tab/keyboard navigation works through major interactive elements
+- [ ] No accessibility warnings from axe-core on key pages
 
 **Commit:** `feat(polish): add empty states, responsive design, and accessibility`
 
@@ -528,7 +526,14 @@ Complete UI/UX redesign of the webseed frontend — a React SPA that controls an
 ---
 
 ## Completion
-All stories implemented and tested. All acceptance criteria checked off.
+All stories implemented. All functional acceptance criteria checked off. **Testing criteria are unchecked** — no test files (Vitest or Playwright) have been written yet. Vitest and Testing Library are configured in the project.
+
+### Known Gaps
+- **No test files**: Vitest is configured (`npm run test`) but zero test files exist in `frontend/src/`
+- **Type safety**: Orval-generated types are bypassed with `Record<string, unknown>` casts — depends on backend Pydantic response models
+- **Unused dependencies**: `@xyflow/react`, `framer-motion`, `next-themes` are installed but not used anywhere
+- **Dark mode**: CSS variables and `next-themes` package are present but no toggle UI exists
+- **Site screenshot thumbnail**: `BusinessDetail` type has `site_screenshot_path` but backend doesn't serve the file
 
 ---
 

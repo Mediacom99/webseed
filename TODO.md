@@ -26,6 +26,14 @@
 - [ ] Riscrivere prompt generazione frontend — passare da HTML statico a Vue.js SPA con DaisyUI components. Requisiti: responsive e fluido su ogni device, PageSpeed Insights score minimo 95 su tutte le metriche (performance, accessibility, best practices, SEO) sia desktop che mobile
 - [ ] Integrare PageSpeed Insights API nel pipeline — dopo il deploy, analizzare automaticamente performance/accessibility/best practices/SEO del sito. Usare i risultati per feedback al ciclo di fix o come gate di qualità prima di procedere all'email
 
+## Frontend
+
+- [ ] **Write tests** — Vitest + Testing Library configured but zero test files exist. Priority: WebSocket store, hooks, SearchForm, BulkActionBar, StatusFilterChips
+- [ ] **Fix type safety** — components bypass Orval types with `Record<string, unknown>` casts. Blocked on backend Pydantic response models; after those land, regenerate Orval and remove casts
+- [ ] **Remove unused dependencies** — `@xyflow/react`, `framer-motion`, `next-themes` are installed but not used
+- [ ] **Dark mode toggle** — CSS variables and `next-themes` are ready but no toggle UI exists
+- [ ] **Site screenshot thumbnail** — `BusinessDetail` has `site_screenshot_path` field but backend doesn't serve static files from `results/`
+
 ## Business / Growth
 
 - [ ] Recupero email business — Google Maps API non fornisce email. Esplorare alternative: scraping pagina Maps per link social/email, integrazione con API di business data (Hunter.io, Apollo, ecc.), o step manuale con comando `webseed set-email PLACE_ID email@example.com` per pre-popolare il campo "To" nei draft Gmail
