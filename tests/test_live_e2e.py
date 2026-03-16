@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
 import time
@@ -29,8 +30,8 @@ import psycopg2  # type: ignore[import-untyped]
 
 BASE = "http://localhost:8000"
 WS_BASE = "ws://localhost:8000"
-API_KEY = "b3f48c4fc25d921db50e10a44598a2e2a11bb733ab290068027437743f8ec6f5"
-DB_DSN = "postgresql://webseed:webseed@localhost:5432/webseed"
+API_KEY = os.environ.get("WEBSEED_API_KEY", "test-key-123")
+DB_DSN = os.environ.get("DATABASE_URL", "postgresql://webseed:webseed@localhost:5432/webseed")
 
 UUID4_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 

@@ -89,6 +89,17 @@ def _get_config(store: PersistencePort, key: str, default: str) -> str:
     return store.get_setting(key) or default
 
 
+def _get_config_int(store: PersistencePort, key: str, default: int) -> int:
+    """Get an integer config setting with fallback."""
+    value = store.get_setting(key)
+    if value is not None:
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            log.warning("Non-numeric config for %s: %r, using default %d", key, value, default)
+    return default
+
+
 # ---------------------------------------------------------------------------
 # Pipeline service functions
 # ---------------------------------------------------------------------------
@@ -261,7 +272,7 @@ def run_test(
     _emit(on_event, "step_start", job_id, "test", message=f"Testing {len(place_ids)} businesses")
 
     effective_model = model or _get_config(store, "config.test_model", "sonnet")
-    max_iters = max_fix_iterations or int(_get_config(store, "config.max_fix_iterations", "3"))
+    max_iters = max_fix_iterations or _get_config_int(store, "config.max_fix_iterations", 3)
 
     code_review_prompt = _get_setting(store, "prompt.code_review")
     code_review_system = _get_setting(store, "prompt.code_review_system")
@@ -493,7 +504,7 @@ def run_pipeline(
     """Run the full pipeline (enrich → generate → test → deploy → email) for specified businesses."""
     effective_model = model or _get_config(store, "config.default_model", "sonnet")
     effective_test_model = test_model or _get_config(store, "config.test_model", "sonnet")
-    max_iters = max_fix_iterations or int(_get_config(store, "config.max_fix_iterations", "3"))
+    max_iters = max_fix_iterations or _get_config_int(store, "config.max_fix_iterations", 3)
 
     api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
@@ -537,7 +548,7 @@ def run_pipeline(
 
         try:
             # ── ENRICH ──
-            if status in ("searched", "error_enrich"):
+            if status in ("searched", "error_enrich", "error_run"):
                 if not api_key:
                     results[pid] = "skipped (no API key)"
                     continue
