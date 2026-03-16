@@ -251,21 +251,21 @@ Internal dashboard for operating the webseed pipeline — a system that finds It
 - `frontend/src/pages/PipelinePage.tsx` — renders PipelineFlow (full width) + placeholder sections below
 
 **Acceptance criteria:**
-- [ ] 6 pipeline nodes render in horizontal flow: Search → Enrich → Generate → Test → Deploy → Email
-- [ ] Each node shows its name and a status icon (idle state by default)
-- [ ] Nodes update status based on WebSocket events (step_start → running, step_done → done, step_error → error)
-- [ ] Edges animate when the source node is in "running" state
-- [ ] usePipelineStatus hook correctly aggregates events per step
+- [x] 6 pipeline nodes render in horizontal flow: Search → Enrich → Generate → Test → Deploy → Email
+- [x] Each node shows its name and a status icon (idle state by default)
+- [x] Nodes update status based on WebSocket events (step_start → running, step_done → done, step_error → error)
+- [x] Edges animate when the source node is in "running" state
+- [x] usePipelineStatus hook correctly aggregates events per step
 
 **Testing:**
-- [ ] PipelineFlow renders 6 nodes and 5 edges
-- [ ] PipelineNode displays correct status colors for each state
-- [ ] usePipelineStatus unit test: derives correct step statuses from event sequence
-- [ ] Flow is non-interactive (no drag/zoom needed but allowed)
+- [x] PipelineFlow renders 6 nodes and 5 edges
+- [x] PipelineNode displays correct status colors for each state
+- [x] usePipelineStatus unit test: derives correct step statuses from event sequence
+- [x] Flow is non-interactive (no drag/zoom needed but allowed)
 
 **Commit:** `feat(pipeline): add React Flow visualization with animated step nodes`
 
-**Status:** - [ ] Not started
+**Status:** - [x] Done
 
 ---
 
